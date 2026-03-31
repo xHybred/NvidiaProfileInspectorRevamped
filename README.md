@@ -40,7 +40,17 @@ For more information how to use this tool, you can find some useful informative 
 
 **Screenshots**
 
-<img width="1144" height="645" alt="Untitled" src="https://github.com/user-attachments/assets/c6798f49-061a-406b-b5b3-bcde607d4563" />
+Midnight - Compact - Modern
+
+<img width="2560" height="1396" alt="Midnight Compact" src="https://github.com/user-attachments/assets/ad4982f7-9db7-415a-aa73-4744973e0a0a" />
+
+Vanta - Compact - Modern
+
+<img width="2560" height="1396" alt="Vanta Compact" src="https://github.com/user-attachments/assets/45d7af17-faf4-48d3-b400-a3ad2bfcf020" />
+
+Midnight - Classic - Classic
+
+<img width="2560" height="1396" alt="Midnight Classic" src="https://github.com/user-attachments/assets/0de8e101-765b-4f45-8fe9-4d649c996dc1" />
 
 ## Socials & Donations
 
