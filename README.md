@@ -14,7 +14,7 @@ This fork focuses on a few things
 
 ## Why does it exist?
 
-I made it because the original version of NVPI was abandoned and missing so many features, and the AIO version fork of NVPI was in a similar position as well, which was an improvement over base NVPI already. My goal was to take over and maintain the improved AIO fork of NVPI, and provide future support to it so it can be maintained and working. Now NVPI is being updated once again since this was created - however, we've gone in two seperate directions with the tools so things have become very different. As a result, I will still continue to maintain NVPI Revamped
+I made this because the original version of NVPI was abandoned and missing so many features that community forks added. My goal was to combine all community improvements into one fork while maintaining & improving upon NVPI, by providing future support for it so it can stay operation. Now NVPI is being updated once again since this was created - however, we've gone in two seperate directions with the tools so things have become very different. As a result, I will still continue to maintain NVPI Revamped
 
 ## Other New Things
 
