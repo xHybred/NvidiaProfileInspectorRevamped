@@ -21,7 +21,7 @@ I made this because the original version of NVPI was abandoned and missing so ma
 Other than the stated things above, here's some additional changes the tool makes over the original
 
 - Exposed several settings that were otherwise not visible without a CustomSettingNames.xml file
-- Improved usability of the search/filter field, e.g. it automatically applies as you type, can be cleared using the "escape" key, etc
+- Improved usability of the search/filter field,
 - Code formatting improvements and bug fixes
 - Improved error messaging
 - Improved performance (faster load, etc)
