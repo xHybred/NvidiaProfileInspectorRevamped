@@ -1,4 +1,3 @@
-<img width="2560" height="1396" alt="Untitled" src="https://github.com/user-attachments/assets/7cd87cc6-a298-49af-b284-d9daf3b2a84d" />
 ## What is the purpose of this fork?
 
 This fork focuses on a few things
