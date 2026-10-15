@@ -1,0 +1,98 @@
+<Window
+    x:Class="nvidiaProfileInspector.UI.Views.Dialogs.CommandPaletteDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Command Palette"
+    Width="640"
+    MinWidth="520"
+    MinHeight="200"
+    MaxHeight="560"
+    ResizeMode="CanResize"
+    ShowInTaskbar="False"
+    SizeToContent="Height"
+    Style="{StaticResource DarkDialogWindowStyle}"
+    WindowStartupLocation="CenterOwner">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBox
+            x:Name="SearchBox"
+            Grid.Row="0"
+            Height="40"
+            Padding="12,0"
+            VerticalContentAlignment="Center"
+            FontSize="15"
+            Style="{StaticResource DarkTextBoxStyle}"
+            ToolTip="Type a command, profile, or setting name" />
+
+        <ListBox
+            x:Name="ResultsList"
+            Grid.Row="1"
+            Margin="0,12,0,0"
+            MaxHeight="340"
+            Background="Transparent"
+            BorderThickness="0"
+            MouseDoubleClick="ResultsList_DoubleClick"
+            ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border
+                        Margin="0,0,0,4"
+                        Padding="10,7"
+                        Background="{DynamicResource Layer1BackgroundBrush}"
+                        BorderBrush="{DynamicResource ControlBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border
+                                MinWidth="58"
+                                Margin="0,0,10,0"
+                                Padding="6,2"
+                                VerticalAlignment="Center"
+                                Background="{DynamicResource Layer3BackgroundBrush}"
+                                CornerRadius="8">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="10"
+                                    FontWeight="Bold"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Text="{Binding Kind}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                    Text="{Binding Title}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <TextBlock
+                                    Margin="0,1,0,0"
+                                    FontSize="11"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Text="{Binding Detail}"
+                                    TextTrimming="CharacterEllipsis"
+                                    Visibility="{Binding Detail, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock
+            Grid.Row="2"
+            Margin="0,12,0,0"
+            FontSize="11"
+            Foreground="{DynamicResource TextSecondaryBrush}"
+            Text="Enter to run  •  Esc to close  •  Ctrl+K to reopen" />
+    </Grid>
+</Window>

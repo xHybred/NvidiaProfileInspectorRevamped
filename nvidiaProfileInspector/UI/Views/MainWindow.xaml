@@ -1,0 +1,2782 @@
+<Window
+    x:Class="nvidiaProfileInspector.UI.Views.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:behaviors="clr-namespace:nvidiaProfileInspector.UI.Behaviors"
+    xmlns:controls="clr-namespace:nvidiaProfileInspector.UI.Controls"
+    xmlns:converters="clr-namespace:nvidiaProfileInspector.UI.Converters"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:helper="clr-namespace:nvidiaProfileInspector.Common.Helper"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:vm="clr-namespace:nvidiaProfileInspector.UI.ViewModels"
+    Title="NVPI Revamped"
+    Width="1360"
+    Height="750"
+    MinWidth="{Binding WindowMinWidth}"
+    MinHeight="450"
+    d:DataContext="{x:Static vm:DesignTimeData.MainViewModel}"
+    Background="Transparent"
+    Closing="Window_Closing"
+    Cursor="Hand"
+    Loaded="Window_Loaded"
+    Style="{StaticResource DarkWindowStyle}"
+    WindowStartupLocation="CenterScreen"
+    mc:Ignorable="d">
+
+    <Window.Resources>
+        <DataTemplate x:Key="SharedValueEditorItemTemplate">
+            <StackPanel Orientation="Horizontal">
+                <Path
+                    Width="12"
+                    Height="12"
+                    Margin="0,0,8,0"
+                    Data="{Binding Source, Converter={StaticResource SettingMetaSourceToIconConverter}, Mode=OneWay}"
+                    Fill="{DynamicResource TextSecondaryBrush}"
+                    Stretch="Uniform" />
+                <TextBlock
+                    FontFamily="{DynamicResource SettingsFontFamily}"
+                    Text="{Binding ValueName, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="NoWrap" />
+            </StackPanel>
+        </DataTemplate>
+
+        <controls:SearchableComboBox x:Key="SharedValueEditorResource"
+                                     Padding="8,4"
+                                     FontFamily="{DynamicResource SettingsFontFamily}"
+                                     HorizontalAlignment="Stretch"
+                                     Foreground="{Binding State, Converter={StaticResource StateToColorConverter}, Mode=OneWay}"
+                                     behaviors:SettingValueValidationBehavior.Enabled="True"
+                                     Cursor=""
+                                     DeferSelectionUntilCommit="True"
+                                     IsEditable="True"
+                                     ItemsSource="{Binding ValueNameItems, Mode=OneWay}"
+                                     MaxDropDownHeight="400"
+                                     Placeholder="Search values..."
+                                     PreserveSelectionOnKeyboardFocus="True"
+                                     SyncSelectedItemToText="False"
+                                     Text="{Binding SelectedValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Validation.ErrorTemplate="{x:Null}"
+                                     ItemTemplate="{StaticResource SharedValueEditorItemTemplate}">
+            <controls:SearchableComboBox.Style>
+                <Style TargetType="controls:SearchableComboBox" BasedOn="{StaticResource {x:Type controls:SearchableComboBox}}">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsModified}" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            <Setter Property="FontWeight" Value="Bold" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </controls:SearchableComboBox.Style>
+        </controls:SearchableComboBox>
+    </Window.Resources>
+
+
+    <Window.InputBindings>
+        <KeyBinding
+            Key="F"
+            Command="{Binding FocusFilterCommand}"
+            Modifiers="Ctrl" />
+        <KeyBinding
+            Key="K"
+            Command="{Binding ShowCommandPaletteCommand}"
+            Modifiers="Ctrl" />
+        <KeyBinding
+            Key="S"
+            Command="{Binding ApplyCommand}"
+            Modifiers="Ctrl" />
+        <KeyBinding
+            Key="R"
+            Command="{Binding RefreshCommand}"
+            Modifiers="Ctrl" />
+        <KeyBinding Key="Escape" Command="{Binding ClearFilterCommand}" />
+        <KeyBinding
+            Key="D"
+            Command="{Binding ToggleDevModeCommand}"
+            Modifiers="Ctrl+Alt" />
+    </Window.InputBindings>
+
+    <Grid x:Name="MainGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <!--  Header/Title  -->
+            <RowDefinition Height="Auto" />
+            <!--  Command Bar  -->
+            <RowDefinition Height="Auto" />
+            <!--  Status/Applications  -->
+            <RowDefinition Height="*" />
+            <!--  Settings List  -->
+            <RowDefinition Height="Auto" />
+            <!--  Description  -->
+            <RowDefinition Height="Auto" />
+            <!--  Footer/Progress  -->
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <!--  Toolbar rail  -->
+            <ColumnDefinition Width="*" />
+            <!--  Content  -->
+        </Grid.ColumnDefinitions>
+
+        <!--  Header / Title Bar  -->
+        <controls:TitleBar
+            x:Name="AppTitleBar"
+            Title=""
+            Grid.Row="0"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            Background="{DynamicResource TitleBarBackdropBrush}"
+            Cursor=""
+            TitleFontSize="16"
+            TitleForeground="{DynamicResource TitleBrush}">
+            <controls:TitleBar.Resources>
+                <SolidColorBrush x:Key="Layer1BackgroundBrush" Color="{DynamicResource TitleBarPopupBackgroundColor}" />
+                <SolidColorBrush x:Key="Layer2BackgroundBrush" Color="{DynamicResource TitleBarControlBackgroundColor}" />
+                <SolidColorBrush x:Key="Layer3BackgroundBrush" Color="{DynamicResource TitleBarControlHoverBackgroundColor}" />
+                <SolidColorBrush x:Key="ControlBorderBrush" Color="{DynamicResource TitleBarControlBorderColor}" />
+                <SolidColorBrush x:Key="ControlBorderHoverBrush" Color="{DynamicResource TitleBarControlBorderHoverColor}" />
+            </controls:TitleBar.Resources>
+
+            <controls:TitleBar.IconContent>
+                <Image
+                    Width="20"
+                    Height="20"
+                    RenderOptions.BitmapScalingMode="HighQuality"
+                    Source="/n1.ico"
+                    Stretch="Uniform" />
+            </controls:TitleBar.IconContent>
+
+            <controls:TitleBar.LeftContent>
+                <StackPanel Margin="12,0,0,0" Orientation="Horizontal">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="16"
+                        FontWeight="Bold"
+                        Foreground="{DynamicResource TitleBrush}"
+                        Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}" />
+                </StackPanel>
+            </controls:TitleBar.LeftContent>
+
+            
+            <controls:TitleBar.RightContent>
+                <StackPanel Orientation="Horizontal">
+                    <Grid>
+                        <Button
+                            x:Name="AppearanceButton"
+                            Width="32"
+                            Height="32"
+                            Margin="4,0"
+                            Padding="0"
+                            Background="{DynamicResource Layer2BackgroundBrush}"
+                            BorderBrush="{DynamicResource ControlBorderBrush}"
+                            BorderThickness="1"
+                            Command="{Binding ToggleAppearanceMenuCommand}"
+                            Cursor="Hand"
+                            ToolTip="Appearance">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border
+                                        x:Name="border"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="4"
+                                        SnapsToDevicePixels="True">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource ControlBorderHoverBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="{DynamicResource HoverOverlayBrush}" />
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding IsAppearanceMenuOpen}" Value="True">
+                                            <Setter TargetName="border" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                            <Setter TargetName="border" Property="BorderBrush" Value="{DynamicResource ControlBorderHoverBrush}" />
+                                        </DataTrigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <Path
+                                Width="18"
+                                Height="18"
+                                Data="{DynamicResource IconTheme}"
+                                Fill="{DynamicResource TextSecondaryBrush}"
+                                Stretch="Uniform" />
+                        </Button>
+                        <Popup
+                            x:Name="AppearancePopup"
+                            AllowsTransparency="True"
+                            HorizontalOffset="-68"
+                            IsOpen="{Binding IsAppearanceMenuOpen, Mode=TwoWay}"
+                            Placement="Bottom"
+                            PlacementTarget="{Binding ElementName=AppearanceButton}"
+                            StaysOpen="False"
+                            VerticalOffset="4">
+                            <Border
+                                Margin="8,0,8,8"
+                                Padding="8"
+                                Background="{DynamicResource Layer2BackgroundBrush}"
+                                BorderBrush="{DynamicResource ControlBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                                <Border.Effect>
+                                    <DropShadowEffect
+                                        BlurRadius="16"
+                                        Direction="270"
+                                        Opacity="0.25"
+                                        ShadowDepth="4" />
+                                </Border.Effect>
+                                <StackPanel Width="168">
+                                    <!--  Theme Section  -->
+                                    <TextBlock
+                                        Margin="6,4,6,4"
+                                        FontSize="10"
+                                        FontWeight="Bold"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        Text="DARK THEMES" />
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetThemeCommand}"
+                                        CommandParameter="Midnight"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsMidnightTheme, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Midnight" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetThemeCommand}"
+                                        CommandParameter="Ember"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsEmberTheme, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Ember" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetThemeCommand}"
+                                        CommandParameter="Onyx"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsOnyxTheme, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Onyx" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetThemeCommand}"
+                                        CommandParameter="Vanta"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsVantaTheme, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Vanta" />
+                                        </StackPanel>
+                                    </Button>
+                                    <TextBlock
+                                        Margin="6,4,6,4"
+                                        FontSize="10"
+                                        FontWeight="Bold"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        Text="LIGHT THEMES" />
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetThemeCommand}"
+                                        CommandParameter="Slate"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsSlateTheme, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Slate" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetThemeCommand}"
+                                        CommandParameter="CleanWhite"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsCleanWhiteTheme, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Clean White" />
+                                        </StackPanel>
+                                    </Button>
+                                    <!--  Separator  -->
+                                    <Border
+                                        Height="1"
+                                        Margin="6,6"
+                                        Background="{DynamicResource ControlBorderBrush}" />
+                                    <!--  Density Section  -->
+                                    <TextBlock
+                                        Margin="6,4,6,4"
+                                        FontSize="10"
+                                        FontWeight="Bold"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        Text="DENSITY" />
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetDensityCommand}"
+                                        CommandParameter="Modern"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsModernDensity, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Modern" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetDensityCommand}"
+                                        CommandParameter="Compact"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsCompactDensity, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Compact" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetDensityCommand}"
+                                        CommandParameter="Classic"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsClassicDensity, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Classic" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Border
+                                        Height="1"
+                                        Margin="6,6"
+                                        Background="{DynamicResource ControlBorderBrush}" />
+                                    <TextBlock
+                                        Margin="6,4,6,4"
+                                        FontSize="10"
+                                        FontWeight="Bold"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        Text="TEXT RENDERING" />
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetTextRenderingCommand}"
+                                        CommandParameter="Modern"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsModernTextRendering, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Modern" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetTextRenderingCommand}"
+                                        CommandParameter="Classic"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsClassicTextRendering, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Classic" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Border
+                                        Height="1"
+                                        Margin="6,6"
+                                        Background="{DynamicResource ControlBorderBrush}" />
+                                    <TextBlock
+                                        Margin="6,4,6,4"
+                                        FontSize="10"
+                                        FontWeight="Bold"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        Text="TOOLBAR" />
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetToolbarOrientationCommand}"
+                                        CommandParameter="Top"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsTopMode, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Top bar" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetToolbarOrientationCommand}"
+                                        CommandParameter="Rail"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsRailMode, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Side rail" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Border
+                                        Height="1"
+                                        Margin="6,6"
+                                        Background="{DynamicResource ControlBorderBrush}" />
+                                    <TextBlock
+                                        Margin="6,4,6,4"
+                                        FontSize="10"
+                                        FontWeight="Bold"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        Text="STATUS BAR" />
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetStatusBarCommand}"
+                                        CommandParameter="Show"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsStatusBarShown, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Show" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetStatusBarCommand}"
+                                        CommandParameter="Hide"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsStatusBarHidden, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Hide" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Border
+                                        Height="1"
+                                        Margin="6,6"
+                                        Background="{DynamicResource ControlBorderBrush}" />
+                                    <TextBlock
+                                        Margin="6,4,6,4"
+                                        FontSize="10"
+                                        FontWeight="Bold"
+                                        Foreground="{DynamicResource TextSecondaryBrush}"
+                                        Text="BACKDROP" />
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetBackdropModeCommand}"
+                                        CommandParameter="Default"
+                                        Cursor="Hand"
+                                        Visibility="{Binding IsWindows10, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsBackdropGlass, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Glass" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetBackdropModeCommand}"
+                                        CommandParameter="MainWindow"
+                                        Cursor="Hand"
+                                        Visibility="{Binding IsWindows11, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsBackdropMica, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Mica" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetBackdropModeCommand}"
+                                        CommandParameter="Tabbed"
+                                        Cursor="Hand"
+                                        Visibility="{Binding IsWindows11, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsBackdropMicaVariant, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Mica Variant" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetBackdropModeCommand}"
+                                        CommandParameter="Acrylic"
+                                        Cursor="Hand"
+                                        Visibility="{Binding IsWindows11, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsBackdropAcrylic, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Acrylic" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button
+                                        Margin="0,1"
+                                        Padding="6,5"
+                                        HorizontalContentAlignment="Stretch"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding SetBackdropModeCommand}"
+                                        CommandParameter="Disabled"
+                                        Cursor="Hand">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border
+                                                    x:Name="bd"
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Stretch" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="{DynamicResource Layer3BackgroundBrush}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Background="Transparent"
+                                                BorderBrush="{DynamicResource TextSecondaryBrush}"
+                                                BorderThickness="1.5"
+                                                CornerRadius="7">
+                                                <Ellipse
+                                                    Width="8"
+                                                    Height="8"
+                                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                                    Visibility="{Binding IsBackdropDisabled, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                            </Border>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="12"
+                                                Foreground="{DynamicResource TextPrimaryBrush}"
+                                                Text="Disabled" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <Button
+                        Margin="4,0"
+                        Command="{Binding ShowAboutCommand}"
+                        Style="{StaticResource HeaderIconButtonStyle}"
+                        ToolTip="About">
+                        <Grid>
+                            <Path
+                                Width="18"
+                                Height="18"
+                                Data="{DynamicResource IconInfo}"
+                                Fill="{DynamicResource TextSecondaryBrush}"
+                                Stretch="Uniform" />
+                            <!--  Update Badge  -->
+                            <Grid
+                                Margin="0,-4,-4,0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <!--  Ripple Effect  -->
+                                <Ellipse
+                                    Width="10"
+                                    Height="10"
+                                    Fill="{DynamicResource NvidiaGreenBrush}"
+                                    IsHitTestVisible="False"
+                                    Opacity="0.4"
+                                    RenderTransformOrigin="0.5,0.5">
+                                    <Ellipse.RenderTransform>
+                                        <ScaleTransform x:Name="RippleScale" ScaleX="1" ScaleY="1" />
+                                    </Ellipse.RenderTransform>
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Style.Triggers>
+                                                <Trigger Property="Visibility" Value="Visible">
+                                                    <Trigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard RepeatBehavior="3x">
+                                                                <DoubleAnimation
+                                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                                    To="2.5"
+                                                                    Duration="0:0:2.0" />
+                                                                <DoubleAnimation
+                                                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                                    To="2.5"
+                                                                    Duration="0:0:2.0" />
+                                                                <DoubleAnimation
+                                                                    Storyboard.TargetProperty="Opacity"
+                                                                    To="0"
+                                                                    Duration="0:0:2.0" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.EnterActions>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <!--  Core Dot  -->
+                                <Border
+                                    Width="10"
+                                    Height="10"
+                                    Background="{DynamicResource NvidiaGreenBrush}"
+                                    BorderBrush="{DynamicResource WindowBackgroundBrush}"
+                                    BorderThickness="1.5"
+                                    CornerRadius="5">
+                                    <Border.Effect>
+                                        <DropShadowEffect
+                                            BlurRadius="8"
+                                            Opacity="0.8"
+                                            ShadowDepth="0"
+                                            Color="#76b900" />
+                                    </Border.Effect>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+            </controls:TitleBar.RightContent>
+        </controls:TitleBar>
+
+        <!--  Toolbar rail (rail toolbar mode)  -->
+        <Border
+            Grid.Row="1"
+            Grid.RowSpan="5"
+            Grid.Column="0"
+            Width="52"
+            Padding="8,8"
+            Background="{DynamicResource Layer2BackgroundBrush}"
+            BorderBrush="{DynamicResource ControlBorderBrush}"
+            BorderThickness="0,0,1,0"
+            Visibility="{Binding IsRailMode, Converter={StaticResource BoolToVisibilityConverter}}">
+            <StackPanel Orientation="Vertical">
+                <Button
+                    Margin="0,0,0,3"
+                    Command="{Binding RestoreProfileCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Restore profile to NVIDIA default settings">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconNvidia}"
+                        Fill="{DynamicResource TextSecondaryBrush}"
+                        Stretch="Uniform" />
+                </Button>
+                <Button
+                    Margin="0,0,0,3"
+                    Command="{Binding CreateProfileCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Create a new profile">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconAdd}"
+                        Fill="{DynamicResource TextSecondaryBrush}"
+                        Stretch="Uniform" />
+                </Button>
+                <Button
+                    Margin="0,0,0,3"
+                    Command="{Binding DeleteProfileCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Delete the current profile">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconDelete}"
+                        Fill="{DynamicResource TextSecondaryBrush}"
+                        Stretch="Uniform" />
+                </Button>
+                <Button
+                    Margin="0,0,0,3"
+                    Command="{Binding CopySettingsCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Copy settings to clipboard">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconCopy}"
+                        Fill="{DynamicResource TextSecondaryBrush}"
+                        Stretch="Uniform" />
+                </Button>
+                <Button
+                    Margin="0,0,0,3"
+                    Command="{Binding OpenBitEditorCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Open the Bit Value Editor">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconBitEditor}"
+                        Fill="{DynamicResource TextSecondaryBrush}"
+                        Stretch="Uniform" />
+                </Button>
+                <Border
+                    Height="1"
+                    Margin="4,2,4,6"
+                    Background="{DynamicResource ControlBorderBrush}" />
+                <Button
+                    Margin="0,0,0,3"
+                    Command="{Binding ShowExportDialogCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Export profiles to file">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconExport}"
+                        Fill="{DynamicResource TextSecondaryBrush}"
+                        Stretch="Uniform" />
+                </Button>
+                <Button
+                    Margin="0,0,0,3"
+                    Command="{Binding ShowImportDialogCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Import profiles from file">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconImport}"
+                        Fill="{DynamicResource TextSecondaryBrush}"
+                        Stretch="Uniform" />
+                </Button>
+                <Button
+                    Margin="0,0,0,3"
+                    Command="{Binding ShowInstalledGamesCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Browse installed games">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconGame}"
+                        Fill="{DynamicResource TextSecondaryBrush}"
+                        Stretch="Uniform" />
+                </Button>
+                <Border
+                    Height="1"
+                    Margin="4,2,4,6"
+                    Background="{DynamicResource ControlBorderBrush}" />
+                <Button
+                    Margin="0,0,0,3"
+                    Command="{Binding RefreshCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Reload all profiles from the driver">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconRefresh}"
+                        Fill="{DynamicResource TextSecondaryBrush}"
+                        Stretch="Uniform" />
+                </Button>
+                <Button
+                    Margin="0,0,0,3"
+                    Command="{Binding RefreshCurrentProfileCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Discard unsaved changes to the current profile">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconRestore}"
+                        Fill="{DynamicResource TextSecondaryBrush}"
+                        Stretch="Uniform" />
+                </Button>
+                <Button
+                    Margin="0,6,0,0"
+                    Command="{Binding ApplyCommand}"
+                    Style="{StaticResource RailButtonStyle}"
+                    ToolTip="Apply all changes and save (Ctrl+S)">
+                    <Path
+                        Width="14"
+                        Height="14"
+                        Data="{DynamicResource IconApply}"
+                        Fill="{DynamicResource NvidiaGreenBrush}"
+                        Stretch="Uniform" />
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <Border
+            Grid.Row="1"
+            Grid.RowSpan="5"
+            Grid.Column="1"
+            Background="{DynamicResource Layer1BackgroundBrush}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!--  Command Bar (top toolbar mode)  -->
+                <Border
+                    Grid.Row="0"
+                    Padding="12,6"
+                    Background="{DynamicResource Layer2BackgroundBrush}"
+                    BorderBrush="{DynamicResource ControlBorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Visibility="{Binding IsTopMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel
+                            Grid.Column="0"
+                            Cursor=""
+                            Orientation="Horizontal">
+                            <controls:ActionBarButton
+                                Command="{Binding RestoreProfileCommand}"
+                                IconFill="{DynamicResource TextSecondaryBrush}"
+                                IconPath="{DynamicResource IconNvidia}"
+                                Text="Defaults"
+                                ToolTip="Restore profile to NVIDIA default settings" />
+
+                            <controls:ActionBarButton
+                                Command="{Binding CreateProfileCommand}"
+                                Cursor="Hand"
+                                IconFill="{DynamicResource TextSecondaryBrush}"
+                                IconPath="{DynamicResource IconAdd}"
+                                Text="New"
+                                ToolTip="Create a new profile" />
+
+                            <Separator Style="{StaticResource ToolBarSeparatorStyle}" />
+
+                            <controls:ActionBarButton
+                                Command="{Binding DeleteProfileCommand}"
+                                IconFill="{DynamicResource TextSecondaryBrush}"
+                                IconPath="{DynamicResource IconDelete}"
+                                Text="Delete"
+                                ToolTip="Delete the current profile" />
+
+                            <controls:ActionBarButton
+                                Command="{Binding CopySettingsCommand}"
+                                IconFill="{DynamicResource TextSecondaryBrush}"
+                                IconPath="{DynamicResource IconCopy}"
+                                Text="Copy"
+                                ToolTip="Copy settings to clipboard" />
+
+                            <controls:ActionBarButton
+                                Command="{Binding OpenBitEditorCommand}"
+                                IconFill="{DynamicResource TextSecondaryBrush}"
+                                IconPath="{DynamicResource IconBitEditor}"
+                                Text="Bit Editor"
+                                ToolTip="Open the Bit Value Editor" />
+
+                            <Separator Style="{StaticResource ToolBarSeparatorStyle}" />
+
+                            <controls:ActionBarButton
+                                x:Name="ExportButton"
+                                Click="ExportButton_Click"
+                                IconFill="{DynamicResource TextSecondaryBrush}"
+                                IconPath="{DynamicResource IconExport}"
+                                Text="Export"
+                                ToolTip="Export profiles to file" />
+
+                            <controls:ActionBarButton
+                                x:Name="ImportButton"
+                                Click="ImportButton_Click"
+                                IconFill="{DynamicResource TextSecondaryBrush}"
+                                IconPath="{DynamicResource IconImport}"
+                                Text="Import"
+                                ToolTip="Import profiles from file" />
+
+                            <controls:ActionBarButton
+                                Command="{Binding ShowInstalledGamesCommand}"
+                                IconFill="{DynamicResource TextSecondaryBrush}"
+                                IconPath="{DynamicResource IconGame}"
+                                Text="Games"
+                                ToolTip="Browse installed games" />
+                        </StackPanel>
+
+                                                
+
+                        <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center" Orientation="Horizontal">
+                            <!--  Result count  -->
+                            <TextBlock
+                                Grid.Column="1"
+                                Margin="0,0,6,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="{Binding ResultsCountText}"
+                                ToolTip="Visible settings out of total for this profile" />
+                            <!--  Source Filter Flyout  -->
+                            <Grid Margin="0,0,6,0">
+                                <Button
+                                    x:Name="FilterSourceButton"
+                                    Command="{Binding ToggleFilterMenuCommand}"
+                                    Style="{StaticResource FilterSourceButtonStyle}"
+                                    ToolTip="Filter setting and value sources">
+                                    <Path
+                                        Width="16"
+                                        Height="16"
+                                        Data="{DynamicResource IconFilter}"
+                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                        Stretch="Uniform" />
+                                </Button>
+                                <Popup
+                                    x:Name="FilterPopup"
+                                    AllowsTransparency="True"
+                                    HorizontalOffset="-8"
+                                    IsOpen="{Binding IsFilterMenuOpen, Mode=TwoWay}"
+                                    Placement="Bottom"
+                                    PlacementTarget="{Binding ElementName=FilterSourceButton}"
+                                    StaysOpen="False"
+                                    VerticalOffset="4">
+                                    <Border
+                                        Margin="8,0,8,8"
+                                        Padding="8"
+                                        Background="{DynamicResource Layer2BackgroundBrush}"
+                                        BorderBrush="{DynamicResource ControlBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8">
+                                        <Border.Effect>
+                                            <DropShadowEffect
+                                                BlurRadius="16"
+                                                Direction="270"
+                                                Opacity="0.25"
+                                                ShadowDepth="4" />
+                                        </Border.Effect>
+                                        <StackPanel Width="252">
+                                            <Grid Margin="6,2,6,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Button
+                                                    Grid.Column="0"
+                                                    Margin="0,0,4,0"
+                                                    Command="{Binding ApplyFilterPresetCommand}"
+                                                    CommandParameter="Essentials"
+                                                    Content="Essentials"
+                                                    Style="{StaticResource FilterFlyoutPresetButtonStyle}"
+                                                    ToolTip="Curated defaults: common settings only" />
+                                                <Button
+                                                    Grid.Column="1"
+                                                    Margin="4,0,0,0"
+                                                    Command="{Binding ApplyFilterPresetCommand}"
+                                                    CommandParameter="Everything"
+                                                    Content="Everything"
+                                                    Style="{StaticResource FilterFlyoutPresetButtonStyle}"
+                                                    ToolTip="Show every setting and value source" />
+                                            </Grid>
+                                            <CheckBox IsChecked="{Binding IsFilterAdvancedMode}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                                    Text="Advanced filters" />
+                                            </CheckBox>
+                                            <Border
+                                                Height="1"
+                                                Margin="6,6"
+                                                Background="{DynamicResource ControlBorderBrush}" />
+                                            <TextBlock Style="{StaticResource FilterFlyoutCategoryHeaderStyle}" Text="SETTING SOURCE" />
+                                            <CheckBox IsChecked="{Binding SettingSourceCommon}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="14"
+                                                        Height="14"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconSettings}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Common (CSN)" />
+                                                </StackPanel>
+                                            </CheckBox>
+                                            <CheckBox IsChecked="{Binding SettingSourceDriver}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="14"
+                                                        Height="14"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconNvidia}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Driver API" />
+                                                </StackPanel>
+                                            </CheckBox>
+                                            <CheckBox IsChecked="{Binding SettingSourceConstants}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="14"
+                                                        Height="14"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconBitEditor}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Driver Constants" />
+                                                </StackPanel>
+                                            </CheckBox>
+                                            <CheckBox IsChecked="{Binding SettingSourceReference}" IsEnabled="{Binding IsReferenceAvailable}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="14"
+                                                        Height="14"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconInfo}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Reference" />
+                                                </StackPanel>
+                                            </CheckBox>
+                                            <CheckBox IsChecked="{Binding SettingSourceScan}" IsEnabled="{Binding IsScanAvailable}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="14"
+                                                        Height="14"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconSearch}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Predefined Scan" />
+                                                </StackPanel>
+                                            </CheckBox>
+
+                                            <Border
+                                                Height="1"
+                                                Margin="6,6,6,2"
+                                                Background="{DynamicResource ControlBorderBrush}"
+                                                Opacity="0.5" />
+                                            <CheckBox
+                                                IsChecked="{Binding ShowActiveFromDisabledSources}"
+                                                Style="{StaticResource FilterFlyoutCheckBoxStyle}"
+                                                ToolTip="Even if a setting source is off, show its settings when they are active in the current profile (predefined, global, or user value).">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                                    Text="Show active settings from disabled sources"
+                                                    TextWrapping="Wrap" />
+                                            </CheckBox>
+                                            <CheckBox
+                                                IsChecked="{Binding AllowMetaFromInactiveSources}"
+                                                Style="{StaticResource FilterFlyoutCheckBoxStyle}"
+                                                ToolTip="Allow a setting's name and description to come from sources that are currently disabled.">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                                    Text="Name &amp; description from inactive sources"
+                                                    TextWrapping="Wrap" />
+                                            </CheckBox>
+                                            <CheckBox
+                                                IsChecked="{Binding ShowSettingIdInName}"
+                                                Style="{StaticResource FilterFlyoutCheckBoxStyle}"
+                                                ToolTip="Prefix the setting id to the setting name in the list (double-click a name to copy its id).">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                                    Text="Add setting ID to name"
+                                                    TextWrapping="Wrap" />
+                                            </CheckBox>
+
+                                            <Border
+                                                Height="1"
+                                                Margin="6,8"
+                                                Background="{DynamicResource ControlBorderBrush}" />
+
+                                            <StackPanel Visibility="{Binding IsFilterAdvancedMode, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <TextBlock Style="{StaticResource FilterFlyoutCategoryHeaderStyle}" Text="VALUE SOURCE" />
+                                            <CheckBox IsChecked="{Binding ValueSourceCommon}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="14"
+                                                        Height="14"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconSettings}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Common (CSN)" />
+                                                </StackPanel>
+                                            </CheckBox>
+                                            <CheckBox IsChecked="{Binding ValueSourceDriver}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="14"
+                                                        Height="14"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconNvidia}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Driver API" />
+                                                </StackPanel>
+                                            </CheckBox>
+                                            <CheckBox IsChecked="{Binding ValueSourceConstants}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="14"
+                                                        Height="14"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconBitEditor}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Driver Constants" />
+                                                </StackPanel>
+                                            </CheckBox>
+                                            <CheckBox IsChecked="{Binding ValueSourceReference}" IsEnabled="{Binding IsReferenceAvailable}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="14"
+                                                        Height="14"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconInfo}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Reference" />
+                                                </StackPanel>
+                                            </CheckBox>
+                                            <CheckBox IsChecked="{Binding ValueSourceScan}" IsEnabled="{Binding IsScanAvailable}" Style="{StaticResource FilterFlyoutCheckBoxStyle}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="14"
+                                                        Height="14"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconSearch}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Predefined Scan" />
+                                                </StackPanel>
+                                            </CheckBox>
+
+                                            <Border
+                                                Height="1"
+                                                Margin="6,6,6,2"
+                                                Background="{DynamicResource ControlBorderBrush}"
+                                                Opacity="0.5" />
+                                            <CheckBox
+                                                IsChecked="{Binding MergeDistinctValues}"
+                                                Style="{StaticResource FilterFlyoutCheckBoxStyle}"
+                                                ToolTip="Merge entries with the same value from different sources into one (highest-priority name wins).">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                                    Text="Merge distinct values"
+                                                    TextWrapping="Wrap" />
+                                            </CheckBox>
+                                            <CheckBox
+                                                IsChecked="{Binding AddPredefinedAppListToCommon}"
+                                                IsEnabled="{Binding IsScanAvailable}"
+                                                Style="{StaticResource FilterFlyoutCheckBoxStyle}"
+                                                ToolTip="Let the predefined scan (app list) values merge into the matching common values instead of showing as separate rows.">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                                    Text="Add predefined app list to common values"
+                                                    TextWrapping="Wrap" />
+                                            </CheckBox>
+                                            <CheckBox
+                                                IsChecked="{Binding AppendAppListToCommonNames}"
+                                                IsEnabled="{Binding IsScanAvailable}"
+                                                Style="{StaticResource FilterFlyoutCheckBoxStyle}"
+                                                ToolTip="When folding scan values into common values, append the (GameA, GameB) app list to the friendly name. Off keeps dropdowns clean.">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                                    Text="Append app list to common value names"
+                                                    TextWrapping="Wrap" />
+                                            </CheckBox>
+                                            <CheckBox
+                                                IsChecked="{Binding AddRawValueToCommon}"
+                                                Style="{StaticResource FilterFlyoutCheckBoxStyle}"
+                                                ToolTip="Prefix the raw value to common (CSN) value names, the way the other sources already show it.">
+                                                <TextBlock
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11"
+                                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                                    Text="Add raw value to common values"
+                                                    TextWrapping="Wrap" />
+                                            </CheckBox>
+                                            </StackPanel>
+
+                                            <Border
+                                                Height="1"
+                                                Margin="6,8,6,4"
+                                                Background="{DynamicResource ControlBorderBrush}" />
+                                            <Button
+                                                Command="{Binding ResetFilterDefaultsCommand}"
+                                                Style="{StaticResource FilterFlyoutResetButtonStyle}"
+                                                ToolTip="Reset all filter and value options to their defaults">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Path
+                                                        Width="13"
+                                                        Height="13"
+                                                        Margin="0,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="{DynamicResource IconRestore}"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        Stretch="Uniform" />
+                                                    <TextBlock
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Text="Restore defaults" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                            <!--  Modified Only Toggle  -->
+                            <ToggleButton
+                                Margin="0,0,6,0"
+                                IsChecked="{Binding ModifiedOnly}"
+                                Style="{StaticResource ModifiedOnlyToggleStyle}"
+                                ToolTip="Show active or modified settings only" />
+                            <Button
+                                Margin="0,0,6,0"
+                                Command="{Binding SetStatusBarCommand}"
+                                CommandParameter="Toggle"
+                                Style="{StaticResource FilterSourceButtonStyle}"
+                                ToolTip="Show or hide the status bar">
+                                <Path
+                                    Width="16"
+                                    Height="16"
+                                    Data="{DynamicResource IconInfo}"
+                                    Fill="{DynamicResource TextSecondaryBrush}"
+                                    Stretch="Uniform" />
+                            </Button>
+                            <Separator Style="{StaticResource ToolBarSeparatorStyle}" />
+                            <Button
+                                                                            x:Name="GlobalProfileButton"
+                                                                            Margin="12,0,0,0"
+                                                                            Command="{Binding NavigateToGlobalCommand}"
+                                                                            Style="{StaticResource HeaderIconButtonStyle}"
+                                                                            ToolTip="Navigate to Global Profile">
+                                                                            <Path
+                                                                                Width="18"
+                                                                                Height="18"
+                                                                                Data="{DynamicResource IconGlobe}"
+                                                                                Fill="{DynamicResource AccentBrush}"
+                                                                                Stretch="Uniform" />
+                                                                        </Button>
+                        </StackPanel>
+
+<StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <controls:ActionBarButton
+                                Command="{Binding RefreshCommand}"
+                                IconFill="{DynamicResource TextSecondaryBrush}"
+                                IconPath="{DynamicResource IconRefresh}"
+                                Text="Reload"
+                                ToolTip="Reload all profiles from the driver" />
+
+                            <controls:ActionBarButton
+                                Command="{Binding RefreshCurrentProfileCommand}"
+                                IconPath="{DynamicResource IconRestore}"
+                                Text="Discard"
+                                ToolTip="Discard unsaved changes to the current profile">
+                                <controls:ActionBarButton.Style>
+                                    <Style BasedOn="{StaticResource {x:Type controls:ActionBarButton}}" TargetType="controls:ActionBarButton">
+                                        <Setter Property="IconFill" Value="{DynamicResource TextSecondaryBrush}" />
+                                        <Setter Property="TextForeground" Value="{DynamicResource TextSecondaryBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasPendingChanges}" Value="True">
+                                                <Setter Property="IconFill" Value="{DynamicResource NvidiaGreenBrush}" />
+                                                <Setter Property="TextForeground" Value="{DynamicResource TextPrimaryBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </controls:ActionBarButton.Style>
+                            </controls:ActionBarButton>
+
+                            <Button
+                                Margin="4,0,0,0"
+                                Padding="20,8"
+                                VerticalAlignment="Center"
+                                Command="{Binding ApplyCommand}"
+                                Content="Apply Changes"
+                                Cursor="Hand"
+                                Style="{StaticResource AccentButtonStyle}"
+                                ToolTip="Apply all changes and save (Ctrl+S)" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!--  Applications Area with Badges (collapsible)  -->
+                <Border
+                    Grid.Row="1"
+                    Padding="16,6"
+                    Background="{DynamicResource Layer1BackgroundBrush}"
+                    BorderBrush="{DynamicResource ControlBorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Visibility="{Binding ShowApplicationsArea, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Grid>
+                        <Grid Visibility="{Binding IsApplicationsCollapsed, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel
+                            Grid.Row="1"
+                            Grid.Column="0"
+                            Orientation="Horizontal">
+                            <Button
+                                Click="AddApplication_Click"
+                                Content="Add Application"
+                                Style="{StaticResource AddApplicationButtonStyle}"
+                                ToolTip="Add a new application to this profile" />
+                            <Separator Margin="0,4,0,4" Style="{StaticResource ToolBarSeparatorStyle}" />
+                        </StackPanel>
+
+                        <Border
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Margin="12,0,0,0">
+                            <ItemsControl ItemsSource="{Binding Applications}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <controls:CollapsibleWrapPanel
+                                            HasOverflow="{Binding ApplicationsHasOverflow, Mode=OneWayToSource}"
+                                            IsExpanded="{Binding ApplicationsExpanded}" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button
+                                            Click="RemoveApplication_Click"
+                                            Style="{StaticResource ApplicationChipStyle}"
+                                            Tag="{Binding}"
+                                            ToolTip="{Binding KeyDisplay}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+
+                        <ToggleButton
+                            Grid.Row="1"
+                            Grid.Column="2"
+                            IsChecked="{Binding ApplicationsExpanded}"
+                            Style="{StaticResource ApplicationsExpandToggleStyle}"
+                            ToolTip="Show all applications / collapse to a single row"
+                            Visibility="{Binding ApplicationsHasOverflow, Converter={StaticResource BoolToVisibilityConverter}}" />
+                        <ToggleButton
+                            Grid.Row="1"
+                            Grid.Column="3"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            IsChecked="{Binding IsApplicationsCollapsed}"
+                            ToolTip="Collapse applications area">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border
+                                        Padding="6"
+                                        Background="Transparent"
+                                        CornerRadius="4">
+                                        <Path
+                                            Width="10"
+                                            Height="6"
+                                            Data="M0,0 L5,6 L10,0"
+                                            Stretch="Uniform"
+                                            Stroke="{DynamicResource TextSecondaryBrush}"
+                                            StrokeThickness="1.5"
+                                            RenderTransformOrigin="0.5,0.5">
+                                            <Path.RenderTransform>
+                                                <RotateTransform Angle="180" />
+                                            </Path.RenderTransform>
+                                        </Path>
+                                    </Border>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        </Grid>
+                        <ToggleButton
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            IsChecked="{Binding IsApplicationsCollapsed}"
+                            ToolTip="Show applications for this profile"
+                            Visibility="{Binding IsApplicationsCollapsed, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border
+                                        Padding="10,4"
+                                        Background="Transparent"
+                                        CornerRadius="12">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path
+                                                Width="10"
+                                                Height="6"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                Data="M0,0 L5,6 L10,0"
+                                                Stretch="Uniform"
+                                                Stroke="{DynamicResource TextSecondaryBrush}"
+                                                StrokeThickness="1.5" />
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="11"
+                                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                                Text="{Binding ApplicationsCount, StringFormat='{}Show {0} applications'}" />
+                                        </StackPanel>
+                                    </Border>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                    </Grid>
+                </Border>
+
+                <!--  Settings List Area  -->
+                <Grid Grid.Row="2" Margin="16,12,16,8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <!--  Search Row: settings + profile + modified (equal)  -->
+                    <Grid Grid.Row="0" Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <controls:SearchableTextBox Grid.Column="0"
+                            x:Name="FilterTextBox"
+                            Height="36"
+                            MinWidth="160"
+                            Margin="0,0,8,0"
+                            Placeholder="Search settings..."
+                            Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="Search settings by name (Ctrl+F)" />
+                        <Grid Grid.Column="1" Margin="0,0,8,0" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <controls:SearchableComboBox Grid.Column="1"
+                                x:Name="ProfileCombo"
+                                Height="36"
+                                Margin="0,0,0,0"
+                                IsEditable="False"
+                                ShowSelectionIcon="True"
+                                IsSynchronizedWithCurrentItem="False"
+                                ItemsSource="{Binding ProfileNames}"
+                                MaxDropDownHeight="500"
+                                Placeholder="Search profiles..."
+                                SelectedValue="{Binding CurrentProfile}"
+                                SelectedValuePath="ProfileName"
+                                SyncSelectedItemToText="True">
+                                <controls:SearchableComboBox.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ProfileListItem}">
+                                        <Grid ToolTip="{Binding ProfileTypeLabel}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Image
+                                                Width="14"
+                                                Height="14"
+                                                Margin="0,0,6,0"
+                                                VerticalAlignment="Center"
+                                                RenderOptions.BitmapScalingMode="HighQuality"
+                                                Source="{Binding Converter={StaticResource ProfileNameToIconConverter}}"
+                                                Stretch="Uniform" />
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                VerticalAlignment="Center"
+                                                Text="{Binding ProfileName}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </controls:SearchableComboBox.ItemTemplate>
+                            </controls:SearchableComboBox>
+                        </Grid>
+                        <controls:SearchableComboBox Grid.Column="2"
+                                                Height="36"
+    MinWidth="220"
+    x:Name="ModifiedProfilesCombo"
+                                                ShowSelectionIcon="True"
+                                                Margin="0,0,0,0"
+                                                ItemsSource="{Binding ModifiedProfiles}"
+                                                MaxDropDownHeight="500"
+                                                Placeholder="Search modified profiles..."
+                                                PreviewKeyDown="ModifiedProfilesCombo_PreviewKeyDown"
+                                                SelectionChanged="ModifiedProfilesCombo_SelectionChanged"
+                                                SyncSelectedItemToText="True"
+                                                ToolTip="View Modified Profiles">
+                                                <controls:SearchableComboBox.ItemTemplate>
+                                                    <DataTemplate DataType="{x:Type vm:ModifiedProfileItem}">
+                                                        <Grid ToolTip="{Binding ProfileTypeLabel}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Image
+                                                                Width="14"
+                                                                Height="14"
+                                                                Margin="0,0,6,0"
+                                                                VerticalAlignment="Center"
+                                                                RenderOptions.BitmapScalingMode="HighQuality"
+                                                                Source="{Binding Converter={StaticResource ProfileNameToIconConverter}}"
+                                                                Stretch="Uniform" />
+                                                            <TextBlock
+                                                                Grid.Column="1"
+                                                                VerticalAlignment="Center"
+                                                                Text="{Binding ProfileName}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </controls:SearchableComboBox.ItemTemplate>
+                                            </controls:SearchableComboBox>
+                    </Grid>
+
+                    <!--  Settings ListView  -->
+                    <Grid Grid.Row="1">
+                        <ListBox
+                            x:Name="SettingsListView"
+                            FontFamily="{DynamicResource SettingsFontFamily}"
+                            behaviors:GridViewColumnResizeBehavior.EnableStarSizing="True"
+                            behaviors:GridViewColumnResizeBehavior.HexColumnWidth="120"
+                            behaviors:GridViewColumnResizeBehavior.SettingColumnMinWidth="240"
+                            behaviors:GridViewColumnResizeBehavior.SettingColumnStarWidth="1"
+                            behaviors:GridViewColumnResizeBehavior.ValueColumnMinWidth="240"
+                            behaviors:GridViewColumnResizeBehavior.ValueColumnStarWidth="1"
+                            behaviors:ScrollIntoViewForListView.Enable="{Binding ScrollIntoViewEnabled}"
+                            ItemsSource="{Binding GroupedSettingsView}"
+                            SelectedItem="{Binding SelectedSetting}"
+                            ScrollViewer.CanContentScroll="True"
+                            VirtualizingPanel.CacheLength="1,1"
+                            VirtualizingPanel.CacheLengthUnit="Page"
+                            VirtualizingPanel.IsVirtualizing="True"
+                            VirtualizingPanel.ScrollUnit="Pixel"
+                            VirtualizingPanel.VirtualizationMode="Recycling"
+                            Style="{StaticResource SettingsListBoxStyle}">
+                        <ListBox.ItemContainerStyle>
+                            <Style BasedOn="{StaticResource SettingsListBoxItemStyle}" TargetType="ListBoxItem">
+                                <Setter Property="BorderThickness" Value="2,0,0,0" />
+                                <Setter Property="BorderBrush" Value="Transparent" />
+                                <Setter Property="Margin" Value="{DynamicResource FlatSettingRowMargin}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsModified}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource ModifiedSettingBackgroundBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsGroupHeader}" Value="True">
+                                        <Setter Property="Focusable" Value="False" />
+                                        <Setter Property="IsTabStop" Value="False" />
+                                        <Setter Property="Margin" Value="{DynamicResource FlatGroupHeaderMargin}" />
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListBoxItem">
+                                                    <ContentPresenter />
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.Resources>
+                            <!--  Group header row of the flattened settings list  -->
+                            <DataTemplate DataType="{x:Type vm:SettingGroupHeaderViewModel}">
+                                <ToggleButton
+                                    Cursor="Hand"
+                                    Focusable="False"
+                                    IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                    OverridesDefaultStyle="True">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border
+                                                Margin="8,0"
+                                                Padding="12,5"
+                                                Background="{DynamicResource Layer1BackgroundBrush}"
+                                                BorderBrush="{DynamicResource ControlBorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="8">
+                                                <DockPanel>
+                                                    <Path
+                                                        x:Name="Arrow"
+                                                        Margin="8,0,4,0"
+                                                        VerticalAlignment="Center"
+                                                        Data="M0,0 L4,4 L8,0 Z"
+                                                        DockPanel.Dock="Right"
+                                                        Fill="{DynamicResource TextSecondaryBrush}"
+                                                        RenderTransformOrigin="0.5,0.5">
+                                                        <Path.RenderTransform>
+                                                            <RotateTransform Angle="0" />
+                                                        </Path.RenderTransform>
+                                                    </Path>
+                                                    <Ellipse
+                                                        Width="8"
+                                                        Height="8"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        DockPanel.Dock="Right"
+                                                        Fill="{DynamicResource NvidiaGreenBrush}"
+                                                        ToolTip="Contains unsaved changes"
+                                                        Visibility="{Binding HasModifiedChanges, Converter={StaticResource BoolToVisibilityConverter}}" />
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock
+                                                            FontSize="12"
+                                                            FontWeight="Bold"
+                                                            Foreground="{DynamicResource NvidiaGreenBrush}"
+                                                            Text="{Binding Name}" />
+                                                        <TextBlock
+                                                            Margin="8,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="11"
+                                                            Foreground="{DynamicResource TextSecondaryBrush}"
+                                                            Text="{Binding Count, StringFormat='{}{0} settings'}" />
+                                                    </StackPanel>
+                                                </DockPanel>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="Arrow" Property="RenderTransform">
+                                                        <Setter.Value>
+                                                            <RotateTransform Angle="180" />
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Arrow" Property="Fill" Value="{DynamicResource NvidiaGreenBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                            </DataTemplate>
+                            <!--  Setting row (description on hover)  -->
+                            <DataTemplate DataType="{x:Type vm:SettingItemViewModel}">
+                                <Grid
+                                    ToolTipService.IsEnabled="{Binding DataContext.ShowDescriptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    ToolTipService.InitialShowDelay="200"
+                                    ToolTipService.ShowDuration="20000">
+                                    <Grid.ToolTip>
+                                        <TextBlock
+                                            MaxWidth="420"
+                                            FontSize="12"
+                                            Foreground="{DynamicResource TextPrimaryBrush}"
+                                            Text="{Binding Converter={StaticResource SettingIdToDescriptionConverter}}"
+                                            TextWrapping="Wrap"
+                                            Visibility="{Binding Text, RelativeSource={RelativeSource Self}, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                                    </Grid.ToolTip>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="32" />
+                                        <ColumnDefinition Width="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=(behaviors:GridViewColumnResizeBehavior.CalculatedSettingColumnWidth)}" />
+                                        <ColumnDefinition Width="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=(behaviors:GridViewColumnResizeBehavior.CalculatedValueColumnWidth)}" />
+                                        <ColumnDefinition Width="{Binding RelativeSource={RelativeSource AncestorType=ListBox}, Path=(behaviors:GridViewColumnResizeBehavior.HexColumnWidth)}" />
+                                    </Grid.ColumnDefinitions>
+                                            <Path
+                                                x:Name="SettingStateIcon"
+                                                Grid.Column="0"
+                                                Width="14"
+                                                Height="14"
+                                                HorizontalAlignment="Center"
+                                                Data="{Binding State, Converter={StaticResource StateToIconConverter}, Mode=OneWay}"
+                                                Fill="{Binding State, Converter={StaticResource StateToSettingIconColorConverter}, Mode=OneWay}"
+                                                Stretch="Uniform"
+                                                ToolTip="{Binding State, Converter={StaticResource StateToTooltipConverter}, Mode=OneWay}" />
+
+                                            <Button
+                                                Grid.Column="1"
+                                                Width="20"
+                                                Height="20"
+                                                Padding="0"
+                                                Background="Transparent"
+                                                BorderThickness="0"
+                                                Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                Cursor="Hand"
+                                                Style="{StaticResource IconButtonStyle}"
+                                                ToolTip="Toggle Favorite">
+                                                <Path
+                                                    Width="14"
+                                                    Height="14"
+                                                    Data="{StaticResource IconStar}"
+                                                    Fill="{Binding IsFavorite, Converter={StaticResource FavoriteToBrushConverter}, Mode=OneWay}"
+                                                    Stretch="Uniform" />
+                                            </Button>
+
+                                            <TextBlock
+                                                x:Name="SettingNameText"
+                                                Grid.Column="2"
+                                                Margin="8,0"
+                                                VerticalAlignment="Center"
+                                                Foreground="{Binding State, Converter={StaticResource StateToSettingIconColorConverter}, Mode=OneWay}"
+                                                Text="{Binding DisplayName, Mode=OneWay}"
+                                                ToolTip="{Binding SettingIdHex, Mode=OneWay}"
+                                                ToolTipService.IsEnabled="{Binding DataContext.IsDevMode, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                <TextBlock.InputBindings>
+                                                    <MouseBinding
+                                                        Command="{Binding DataContext.CopySettingIdCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}"
+                                                        Gesture="LeftDoubleClick" />
+                                                </TextBlock.InputBindings>
+                                            </TextBlock>
+                                    <Grid Grid.Column="3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border
+                                            x:Name="ValueEditorAnchor"
+                                            Grid.Column="0"
+                                            Margin="-2,-1,4,-1"
+                                            Background="Transparent" />
+                                        <ContentControl
+                                            x:Name="ValueEditorHost"
+                                            Grid.Column="0"
+                                            Margin="-2,-1,4,-1"
+                                            Visibility="Collapsed" />
+                                        <TextBlock
+                                            x:Name="DisplayText"
+                                            Grid.Column="0"
+                                            Margin="8,0"
+                                            VerticalAlignment="Center"
+                                            Foreground="{Binding State, Converter={StaticResource StateToColorConverter}, Mode=OneWay}"
+                                            Text="{Binding SelectedValue, Mode=OneWay}"
+                                            TextWrapping="NoWrap" />
+                                        <Button
+                                            x:Name="RestoreButton"
+                                            Grid.Column="1"
+                                            Width="28"
+                                            Height="28"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Command="{Binding DataContext.ResetValueCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            ToolTip="Reset setting to default value"
+                                            Visibility="Collapsed">
+                                            <Path
+                                                x:Name="RestoreButtonIcon"
+                                                Width="14"
+                                                Height="14"
+                                                Data="{StaticResource IconRestore}"
+                                                Fill="{StaticResource NvidiaGreenBrush}"
+                                                Stretch="Uniform" />
+                                        </Button>
+                                    </Grid>
+
+                                            <TextBlock
+                                                x:Name="HexValueText"
+                                                Grid.Column="4"
+                                                Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                FontFamily="Consolas"
+                                                Foreground="{Binding State, Converter={StaticResource StateToColorConverter}, Mode=OneWay}"
+                                                Text="{Binding ValueRaw, Mode=OneWay}"
+                                                TextTrimming="CharacterEllipsis"
+                                                ToolTip="{Binding ValueRaw, Mode=OneWay}" />
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsModified}" Value="True">
+                                        <Setter TargetName="SettingStateIcon" Property="Data" Value="{StaticResource IconUser}" />
+                                        <Setter TargetName="SettingStateIcon" Property="Fill" Value="{DynamicResource WarningBrush}" />
+                                        <Setter TargetName="SettingStateIcon" Property="ToolTip" Value="User-modified Setting" />
+                                        <Setter TargetName="SettingNameText" Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                        <Setter TargetName="DisplayText" Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                        <Setter TargetName="HexValueText" Property="Foreground" Value="{DynamicResource WarningBrush}" />
+                                        <Setter TargetName="RestoreButton" Property="Visibility" Value="Visible" />
+                                        <Setter TargetName="RestoreButton" Property="ToolTip" Value="Reset unsaved change" />
+                                        <Setter TargetName="RestoreButtonIcon" Property="Data" Value="{StaticResource IconRestore}" />
+                                        <Setter TargetName="RestoreButtonIcon" Property="Fill" Value="{DynamicResource WarningBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                        <Setter TargetName="DisplayText" Property="Visibility" Value="Hidden" />
+                                        <Setter TargetName="ValueEditorHost" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsUserDefined}" Value="True" />
+                                            <Condition Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True" />
+                                            <Condition Binding="{Binding IsModified}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter TargetName="RestoreButton" Property="Visibility" Value="Visible" />
+                                        <Setter TargetName="RestoreButton" Property="ToolTip" Value="Reset setting to NVIDIA default value" />
+                                        <Setter TargetName="RestoreButtonIcon" Property="Data" Value="{StaticResource IconNvidia}" />
+                                    </MultiDataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.Resources>
+                        </ListBox>
+
+                        <!--  Empty state: distinguishes "no matches" from a broken list  -->
+                        <Border
+                            Background="Transparent"
+                            Visibility="{Binding IsSettingsListEmpty, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <StackPanel
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                                <Path
+                                    Width="28"
+                                    Height="28"
+                                    HorizontalAlignment="Center"
+                                    Data="{DynamicResource IconSearch}"
+                                    Fill="{DynamicResource TextDisabledBrush}"
+                                    Stretch="Uniform" />
+                                <TextBlock
+                                    Margin="0,12,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontSize="14"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                    Text="No settings to show" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    HorizontalAlignment="Center"
+                                    MaxWidth="360"
+                                    FontSize="12"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Text="{Binding EmptyStateHintText}"
+                                    TextAlignment="Center"
+                                    TextWrapping="Wrap" />
+                                <Button
+                                    Margin="0,12,0,0"
+                                    HorizontalAlignment="Center"
+                                    Padding="16,6"
+                                    Command="{Binding ClearFilterCommand}"
+                                    Content="Clear search"
+                                    Cursor="Hand"
+                                    Style="{StaticResource DarkButtonStyle}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
+
+
+
+                <!--  Footer / Progress (status part hides via appearance menu)  -->
+                <Border
+                    Grid.Row="4"
+                    Padding="10,4"
+                    Background="{DynamicResource Layer1BackgroundBrush}"
+                    Visibility="{Binding IsFooterVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Grid>
+                        <Grid Visibility="{Binding IsProgressFooterVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Margin="0,0,12,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource NvidiaGreenBrush}"
+                                Text="Scanning profiles" />
+                            <ProgressBar
+                                Grid.Column="1"
+                                Height="12"
+                                Margin="0,0,12,0"
+                                VerticalAlignment="Center"
+                                Maximum="100"
+                                Style="{StaticResource DarkProgressBarStyle}"
+                                Value="{Binding ScanProgress}" />
+                            <TextBlock
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                FontWeight="SemiBold"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                Text="{Binding ScanProgressText}" />
+                        </Grid>
+                        <Grid Visibility="{Binding IsStatusFooterVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel
+                                Grid.Column="0"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                                <Button
+                                    Margin="0,0,10,0"
+                                    Click="CustomSettingsOverrideChip_Click"
+                                    Content="{Binding StatusModeText}"
+                                    Style="{StaticResource WarningStatusChipButtonStyle}"
+                                    Visibility="{Binding StatusModeText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}"
+                                    WindowChrome.IsHitTestVisibleInChrome="True">
+                                    <Button.ToolTip>
+                                        <ToolTip Content="Custom settings are loaded from an external CustomSettingNames.xml file" />
+                                    </Button.ToolTip>
+                                </Button>
+                                <Button
+                                    Content="{Binding StatusDriverText}"
+                                    Cursor="Arrow"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                    IsHitTestVisible="False"
+                                    IsTabStop="False"
+                                    Style="{StaticResource StatusChipButtonStyle}"
+                                    Visibility="{Binding StatusDriverText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                                <Button
+                                    Content="{Binding StatusProfilesText}"
+                                    Cursor="Arrow"
+                                    IsHitTestVisible="False"
+                                    IsTabStop="False"
+                                    Style="{StaticResource StatusChipButtonStyle}"
+                                    Visibility="{Binding StatusProfilesText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                                <Button
+                                    Content="{Binding StatusSettingsText}"
+                                    Cursor="Arrow"
+                                    IsHitTestVisible="False"
+                                    IsTabStop="False"
+                                    Style="{StaticResource StatusChipButtonStyle}"
+                                    Visibility="{Binding StatusSettingsText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                                <Button
+                                    Content="{Binding StatusOtaText}"
+                                    Cursor="Arrow"
+                                    IsHitTestVisible="False"
+                                    IsTabStop="False"
+                                    Style="{StaticResource StatusChipButtonStyle}"
+                                    Visibility="{Binding StatusOtaText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                            </StackPanel>
+                            <StackPanel
+                                Grid.Column="2"
+                                Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal">
+                                <Button
+                                    Margin="0,0,10,0"
+                                    Content="{Binding StatusVersionText}"
+                                    Cursor="Arrow"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                    IsHitTestVisible="False"
+                                    IsTabStop="False"
+                                    Style="{StaticResource StatusChipButtonStyle}"
+                                    Visibility="{Binding StatusVersionText, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                                <Button
+                                    Margin="0"
+                                    Command="{Binding ShowAboutCommand}"
+                                    Content="{Binding StatusUpdateHintText}"
+                                    Style="{StaticResource AccentStatusChipButtonStyle}"
+                                    Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVisibilityConverter}}"
+                                    WindowChrome.IsHitTestVisibleInChrome="True" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!--  Snackbar Notifications  -->
+        <controls:NotificationSnackbar
+            Grid.RowSpan="6"
+            Grid.Column="0"
+            Grid.ColumnSpan="2"
+            IsActive="{Binding IsSnackbarActive}"
+            Message="{Binding SnackbarMessage}"
+            Type="{Binding SnackbarType}" />
+
+        <!--  Floating unsaved-changes bar  -->
+        <Border
+            Grid.Row="3"
+            Grid.Column="1"
+            Margin="0,0,0,16"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            Panel.ZIndex="10"
+            Background="{DynamicResource Layer2BackgroundBrush}"
+            BorderBrush="{DynamicResource NvidiaGreenBrush}"
+            BorderThickness="1"
+            CornerRadius="20"
+            Visibility="{Binding HasPendingChanges, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border.Effect>
+                <DropShadowEffect
+                    BlurRadius="20"
+                    Direction="270"
+                    Opacity="0.4"
+                    ShadowDepth="6"
+                    Color="#000000" />
+            </Border.Effect>
+            <StackPanel
+                Margin="16,8"
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
+                <Ellipse
+                    Width="8"
+                    Height="8"
+                    Margin="0,0,8,0"
+                    VerticalAlignment="Center"
+                    Fill="{DynamicResource NvidiaGreenBrush}" />
+                <TextBlock
+                    Margin="0,0,12,0"
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    FontWeight="SemiBold"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
+                    Text="{Binding PendingChangesCount, StringFormat='{}{0} unsaved'}" />
+                <Button
+                    Margin="0,0,8,0"
+                    Padding="12,4"
+                    VerticalAlignment="Center"
+                    Command="{Binding ShowPendingChangesCommand}"
+                    Content="Review"
+                    Cursor="Hand"
+                    Style="{StaticResource DarkButtonStyle}" />
+                <Button
+                    Padding="16,4"
+                    VerticalAlignment="Center"
+                    Command="{Binding ApplyCommand}"
+                    Content="Apply"
+                    Cursor="Hand"
+                    Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
+        </Border>
+
+    </Grid>
+
+
+</Window>

@@ -1,0 +1,19 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+    <CornerRadius x:Key="OverlayCornerRadius">12</CornerRadius>
+    <Thickness x:Key="ControlBorderThickness">1</Thickness>
+
+    <!--  Display Density (defaults = Modern, overridden by ThemeManager)  -->
+    <Thickness x:Key="ListItemPadding">4,4,4,4</Thickness>
+    <Thickness x:Key="ListItemMargin">0,2,0,2</Thickness>
+    <Thickness x:Key="ComboBoxItemPadding">12,8</Thickness>
+    <Thickness x:Key="ComboBoxItemMargin">2,1</Thickness>
+    <Thickness x:Key="GroupHeaderOuterMargin">0,8,0,4</Thickness>
+    <Thickness x:Key="GroupHeaderPadding">4,4,4,8</Thickness>
+    <Thickness x:Key="GroupItemsPresenterMargin">8,4,8,4</Thickness>
+    <!--  Flattened settings list: header top = gap between groups, row margin includes the 8px group indent  -->
+    <Thickness x:Key="FlatGroupHeaderMargin">0,16,0,4</Thickness>
+    <Thickness x:Key="FlatSettingRowMargin">4,2,4,2</Thickness>
+
+</ResourceDictionary>

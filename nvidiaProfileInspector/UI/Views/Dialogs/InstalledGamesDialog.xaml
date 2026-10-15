@@ -1,0 +1,290 @@
+<Window
+    x:Class="nvidiaProfileInspector.UI.Views.Dialogs.InstalledGamesDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Installed Games"
+    Width="780"
+    MinWidth="560"
+    MinHeight="420"
+    Height="560"
+    ResizeMode="CanResize"
+    ShowInTaskbar="False"
+    Style="{StaticResource DarkDialogWindowStyle}"
+    WindowStartupLocation="CenterOwner">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border
+            Grid.Row="0"
+            Padding="24,12,0,0"
+            Background="Transparent">
+            <Grid Height="32">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Foreground="{DynamicResource TextPrimaryBrush}"
+                        Text="Installed Games" />
+                    <Border
+                        Margin="12,0,0,0"
+                        Padding="8,2"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource NvidiaGreenBrush}"
+                        CornerRadius="10"
+                        Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <TextBlock
+                            FontSize="12"
+                            FontWeight="Bold"
+                            Foreground="White"
+                            Text="{Binding GameCount}" />
+                    </Border>
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Column="1"
+                    Margin="0,-12,0,0"
+                    VerticalAlignment="Top"
+                    Orientation="Horizontal"
+                    WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button
+                        Click="Maximize_Click"
+                        Style="{StaticResource MaximizeWindowButtonStyle}"
+                        ToolTip="Maximize" />
+                    <Button
+                        Click="Close_Click"
+                        Style="{StaticResource CloseWindowButtonStyle}"
+                        ToolTip="Close">
+                        <Path
+                            Width="10"
+                            Height="10"
+                            Data="{StaticResource IconClose}"
+                            Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                            Stretch="Uniform" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="24,12,24,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox
+                x:Name="FilterBox"
+                Grid.Column="0"
+                Height="36"
+                Padding="12,0"
+                VerticalContentAlignment="Center"
+                FontSize="13"
+                Style="{StaticResource DarkTextBoxStyle}"
+                ToolTip="Filter installed games" />
+            <Button
+                Grid.Column="1"
+                Margin="8,0,0,0"
+                MinWidth="90"
+                Click="Rescan_Click"
+                Content="Rescan"
+                IsEnabled="{Binding IsNotScanning}"
+                Style="{StaticResource DarkButtonStyle}"
+                ToolTip="Scan again for installed games" />
+            <Button
+                Grid.Column="2"
+                Margin="8,0,0,0"
+                MinWidth="90"
+                Click="Cancel_Click"
+                Content="Cancel"
+                Style="{StaticResource DarkButtonStyle}"
+                Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibilityConverter}}" />
+        </Grid>
+
+        <StackPanel
+            Grid.Row="2"
+            Margin="24,8,24,0"
+            Orientation="Horizontal">
+            <TextBlock
+                VerticalAlignment="Center"
+                FontSize="12"
+                Foreground="{DynamicResource TextSecondaryBrush}"
+                Text="{Binding StatusText}" />
+            <ProgressBar
+                Width="120"
+                Height="10"
+                Margin="12,0,0,0"
+                VerticalAlignment="Center"
+                IsIndeterminate="True"
+                Style="{StaticResource DarkProgressBarStyle}"
+                Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibilityConverter}}" />
+        </StackPanel>
+
+        <WrapPanel
+            Grid.Row="3"
+            Margin="24,4,24,0"
+            Orientation="Horizontal">
+            <CheckBox
+                Margin="0,0,0,0"
+                VerticalAlignment="Center"
+                VerticalContentAlignment="Center"
+                Content="Steam"
+                FontSize="11"
+                Foreground="{DynamicResource TextSecondaryBrush}"
+                IsChecked="{Binding ShowSteam, Mode=TwoWay}" />
+            <CheckBox
+                Margin="12,0,0,0"
+                VerticalAlignment="Center"
+                VerticalContentAlignment="Center"
+                Content="Epic"
+                FontSize="11"
+                Foreground="{DynamicResource TextSecondaryBrush}"
+                IsChecked="{Binding ShowEpic, Mode=TwoWay}" />
+            <CheckBox
+                Margin="12,0,0,0"
+                VerticalAlignment="Center"
+                VerticalContentAlignment="Center"
+                Content="Start Menu"
+                FontSize="11"
+                Foreground="{DynamicResource TextSecondaryBrush}"
+                IsChecked="{Binding ShowStartMenu, Mode=TwoWay}" />
+            <CheckBox
+                Margin="12,0,0,0"
+                VerticalAlignment="Center"
+                VerticalContentAlignment="Center"
+                Content="GOG"
+                FontSize="11"
+                Foreground="{DynamicResource TextSecondaryBrush}"
+                IsChecked="{Binding ShowGog, Mode=TwoWay}" />
+            <CheckBox
+                Margin="12,0,0,0"
+                VerticalAlignment="Center"
+                VerticalContentAlignment="Center"
+                Content="EA"
+                FontSize="11"
+                Foreground="{DynamicResource TextSecondaryBrush}"
+                IsChecked="{Binding ShowEa, Mode=TwoWay}" />
+            <CheckBox
+                Margin="12,0,0,0"
+                VerticalAlignment="Center"
+                VerticalContentAlignment="Center"
+                Content="Ubisoft"
+                FontSize="11"
+                Foreground="{DynamicResource TextSecondaryBrush}"
+                IsChecked="{Binding ShowUbisoft, Mode=TwoWay}" />
+        </WrapPanel>
+
+
+        <ListBox
+            x:Name="GamesList"
+            Grid.Row="4"
+            Margin="24,12,24,12"
+            Background="Transparent"
+            BorderThickness="0"
+            ItemsSource="{Binding Tiles}"
+            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+            SelectionChanged="GamesList_SelectionChanged">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border
+                        Width="160"
+                        Height="118"
+                        Margin="0,0,8,8"
+                        Padding="10"
+                        Background="{DynamicResource Layer1BackgroundBrush}"
+                        BorderBrush="{DynamicResource ControlBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Cursor="Hand">
+                        <Grid>
+                            <StackPanel VerticalAlignment="Center">
+                                <Image
+                                    Width="48"
+                                    Height="48"
+                                    HorizontalAlignment="Center"
+                                    RenderOptions.BitmapScalingMode="HighQuality"
+                                    Source="{Binding Icon}"
+                                    Stretch="Uniform" />
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Foreground="{DynamicResource TextPrimaryBrush}"
+                                    Text="{Binding DisplayName}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding DisplayName}" />
+                                <TextBlock
+                                    Margin="0,2,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{DynamicResource TextSecondaryBrush}"
+                                    Text="{Binding Caption}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding Caption}" />
+                            </StackPanel>
+                            <Button
+                                Width="22"
+                                Height="22"
+                                Padding="0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Click="HideTile_Click"
+                                Content="✕"
+                                Cursor="Hand"
+                                FontSize="10"
+                                Foreground="{DynamicResource TextSecondaryBrush}"
+                                PreviewMouseLeftButtonDown="HideTile_PreviewMouseDown"
+                                ToolTip="Hide this game" />
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Border
+            Grid.Row="5"
+            Padding="24,16"
+            Background="{DynamicResource Layer2BackgroundBrush}"
+            CornerRadius="0,0,8,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    FontSize="11"
+                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    Text="Click a game to open its driver profile  •  Esc to close" />
+                <Button
+                    Grid.Column="1"
+                    MinWidth="100"
+                    Click="Close_Click"
+                    Content="Close"
+                    IsCancel="True"
+                    Style="{StaticResource DarkButtonStyle}" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

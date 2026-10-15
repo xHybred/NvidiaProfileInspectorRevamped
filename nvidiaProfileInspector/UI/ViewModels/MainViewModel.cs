@@ -1,0 +1,2508 @@
+namespace nvidiaProfileInspector.UI.ViewModels
+{
+    using nvidiaProfileInspector;
+    using nvidiaProfileInspector.Common;
+    using nvidiaProfileInspector.Common.Helper;
+    using nvidiaProfileInspector.Common.Meta;
+    using nvidiaProfileInspector.Common.Updates;
+    using nvidiaProfileInspector.Native.NVAPI2;
+    using nvidiaProfileInspector.Native.WINAPI;
+    using nvidiaProfileInspector.Services;
+    using System;
+    using System.Collections.Generic;
+    using System.Collections.ObjectModel;
+    using System.Collections.Specialized;
+    using System.ComponentModel;
+    using System.Diagnostics;
+    using System.Globalization;
+    using System.IO;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
+    using System.Windows;
+    using System.Windows.Data;
+    using System.Windows.Input;
+    using System.Windows.Media;
+
+    public static class MessageBoxEx
+    {
+        public static MessageBoxResult Show(string message, string title = "", MessageBoxButton button = MessageBoxButton.OK, MessageBoxImage icon = MessageBoxImage.Information)
+        {
+            return MessageBoxViewModel.Show(message, title, button, icon);
+        }
+    }
+
+    public class MainViewModel : ViewModelBase
+    {
+        private readonly DrsSettingsMetaService _metaService;
+        private readonly DrsSettingsService _settingService;
+        private readonly DrsScannerService _scannerService;
+        private readonly DrsImportService _importService;
+
+        private ObservableCollection<ProfileListItem> _profileNames = new ObservableCollection<ProfileListItem>();
+        private string _currentProfile;
+        private string _baseProfileName = "";
+        private string _filterText = "";
+        private string _applicationsText = "";
+        private bool _applicationsExpanded;
+        private bool _applicationsHasOverflow;
+        private string _settingDescription = "";
+        private string _scanStatus = "";
+        private bool _isDevMode;
+        private int _scanProgress;
+        private bool _isScanning;
+        private bool _isUpdateAvailable;
+        private UpdateRelease _latestAvailableRelease;
+        private readonly AppUpdateService _updateService = new AppUpdateService();
+        private SettingItemViewModel _selectedSetting;
+        private readonly BulkObservableCollection<object> _settingsViewItems = new BulkObservableCollection<object>();
+        private HashSet<string> _hiddenSettingGroups;
+        private CancellationTokenSource _scanCancellationTokenSource;
+        private bool _settingSourceCommon = true;
+        private bool _settingSourceDriver;
+        private bool _settingSourceConstants;
+        private bool _settingSourceReference;
+        private bool _settingSourceScan;
+        private bool _valueSourceCommon = true;
+        private bool _valueSourceDriver;
+        private bool _valueSourceConstants = true;
+        private bool _valueSourceReference = true;
+        private bool _valueSourceScan = true;
+        private bool _modifiedOnly;
+        private bool _showActiveFromDisabledSources = true;
+        private bool _mergeDistinctValues = true;
+        private bool _addPredefinedAppListToCommon;
+        private bool _appendAppListToCommonNames;
+        private bool _addRawValueToCommon;
+        private bool _allowMetaFromInactiveSources = true;
+        private bool _showSettingIdInName;
+        private bool _isFilterMenuOpen;
+        private bool _isFilterAdvancedMode = true;
+        private bool _showDescriptions = true;
+        private bool _isApplicationsCollapsed;
+        private bool _showStatusFooter;
+        private int _visibleSettingsCount;
+        private DateTime _filterMenuClosedAt = DateTime.MinValue;
+        private bool _isInitializing;
+        private SynchronizationContext _uiContext;
+        private ITaskbarList3 _taskbarList;
+        private IntPtr _windowHandle;
+        private Task _activeScanTask = Task.CompletedTask;
+        private bool _scrollIntoViewEnabled = false;
+        private string _snackbarMessage;
+        private string _snackbarType;
+        private bool _isSnackbarActive;
+        private int _snackbarToken;
+        private bool _isAppearanceMenuOpen;
+        private DateTime _appearanceMenuClosedAt = DateTime.MinValue;
+        private string _toolbarOrientation = "Top";
+        private bool _isMidnightTheme;
+        private bool _isCleanWhiteTheme;
+        private bool _isSlateTheme;
+        private bool _isVantaTheme;
+        private bool _isOnyxTheme;
+        private bool _isEmberTheme;
+        private bool _isCompactDensity;
+        private bool _isClassicDensity;
+        private bool _isClassicTextRendering;
+        private string _currentBackdropMode = "Tabbed";
+        private readonly bool _isWindows11 = Environment.OSVersion.Version.Build >= 22000;
+        private string _statusDriverText = "";
+        private string _statusProfilesText = "";
+        private string _statusSettingsText = "";
+        private string _statusOtaText = "";
+        private string _statusModeText = "";
+
+        public MainViewModel(
+            DrsSettingsMetaService metaService,
+            DrsSettingsService settingService,
+            DrsScannerService scannerService,
+            DrsImportService importService)
+        {
+            _metaService = metaService;
+            _settingService = settingService;
+            _scannerService = scannerService;
+            _importService = importService;
+
+            if (_metaService == null && _settingService == null)
+            {
+                IsDesignMode = true;
+                LoadDesignTimeData();
+            }
+            else
+            {
+                InitializeCommands();
+                LoadSettings();
+            }
+
+            OnShowMessage += (msg) => ShowSnackbar(msg, "Information");
+            OnShowError += (msg) => ShowSnackbar(msg, "Error");
+
+            Settings.CollectionChanged += OnSettingsCollectionChanged;
+        }
+
+        public bool IsDesignMode { get; private set; }
+
+        private void LoadDesignTimeData()
+        {
+            IsDesignMode = true;
+            _profileNames.Add(new ProfileListItem(DrsSettingsService.GlobalProfileName, false));
+            _profileNames.Add(new ProfileListItem("Sample Game Profile", false));
+            _currentProfile = "Sample Game Profile";
+
+            foreach (var item in DesignTimeData.SampleSettings)
+            {
+                Settings.Add(item);
+            }
+
+            RebuildSettingsView();
+
+            InitializeCommands();
+        }
+
+        public ObservableCollection<ProfileListItem> ProfileNames => _profileNames;
+
+
+        public bool IsGlobalProfile => string.IsNullOrEmpty(_currentProfile) || _currentProfile == _baseProfileName;
+
+        public bool ShowApplicationsArea
+        {
+            get
+            {
+                var isGlobal = string.IsNullOrEmpty(_currentProfile) || _currentProfile == _baseProfileName;
+                return !isGlobal;
+            }
+        }
+
+        public string CurrentProfile
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_currentProfile) || _currentProfile == _baseProfileName)
+                {
+                    return DrsSettingsService.GlobalProfileName;
+                }
+                return _currentProfile;
+            }
+            set
+            {
+                SetCurrentProfile(value);
+            }
+        }
+
+        public string FilterText
+        {
+            get => _filterText;
+            set
+            {
+                if (SetProperty(ref _filterText, value, nameof(FilterText)))
+                    OnFilterTextChanged();
+            }
+        }
+
+        public bool IsFilterMenuOpen
+        {
+            get => _isFilterMenuOpen;
+            set
+            {
+                if (SetProperty(ref _isFilterMenuOpen, value, nameof(IsFilterMenuOpen)))
+                {
+                    if (!value)
+                        _filterMenuClosedAt = DateTime.UtcNow;
+                }
+            }
+        }
+
+        public int VisibleSettingsCount
+        {
+            get => _visibleSettingsCount;
+            private set => SetProperty(ref _visibleSettingsCount, value, nameof(VisibleSettingsCount));
+        }
+
+        public string ResultsCountText => $"{VisibleSettingsCount} of {Settings.Count}";
+
+        public bool IsSettingsListEmpty => VisibleSettingsCount == 0;
+
+        public string EmptyStateHintText
+        {
+            get
+            {
+                if (ModifiedOnly)
+                    return "Modified-only is on — turn it off to see everything.";
+                if (!string.IsNullOrWhiteSpace(FilterText))
+                    return $"No settings match \"{FilterText.Trim()}\".";
+                return "No settings to show for this profile.";
+            }
+        }
+
+        public bool IsApplicationsCollapsed
+        {
+            get => _isApplicationsCollapsed;
+            set
+            {
+                if (SetProperty(ref _isApplicationsCollapsed, value, nameof(IsApplicationsCollapsed)))
+                {
+                    var settings = Common.Helper.UserSettings.LoadSettings();
+                    settings.ApplicationsCollapsed = value;
+                    settings.SaveSettings();
+                }
+            }
+        }
+
+        public int ApplicationsCount => Applications.Count;
+
+        // The scanning progress footer always shows regardless of this setting.
+        public bool ShowStatusFooter
+        {
+            get => _showStatusFooter;
+            set
+            {
+                if (SetProperty(ref _showStatusFooter, value, nameof(ShowStatusFooter)))
+                {
+                    OnPropertyChanged(nameof(IsStatusBarShown));
+                    OnPropertyChanged(nameof(IsStatusBarHidden));
+                    OnPropertyChanged(nameof(IsFooterVisible));
+                    var settings = Common.Helper.UserSettings.LoadSettings();
+                    settings.ShowStatusFooter = value;
+                    settings.SaveSettings();
+                }
+            }
+        }
+
+        public bool IsStatusBarShown => ShowStatusFooter;
+
+        public bool IsStatusBarHidden => !ShowStatusFooter;
+
+        public bool IsFilterAdvancedMode
+        {
+            get => _isFilterAdvancedMode;
+            set
+            {
+                if (SetProperty(ref _isFilterAdvancedMode, value, nameof(IsFilterAdvancedMode)))
+                    SaveFilterPreferences();
+            }
+        }
+
+        // --- Setting sources: which sources contribute setting rows to the list. ---
+        public bool SettingSourceCommon
+        {
+            get => _settingSourceCommon;
+            set { if (SetProperty(ref _settingSourceCommon, value, nameof(SettingSourceCommon))) OnSourceFilterChanged(); }
+        }
+
+        public bool SettingSourceDriver
+        {
+            get => _settingSourceDriver;
+            set { if (SetProperty(ref _settingSourceDriver, value, nameof(SettingSourceDriver))) OnSourceFilterChanged(); }
+        }
+
+        public bool SettingSourceConstants
+        {
+            get => _settingSourceConstants;
+            set { if (SetProperty(ref _settingSourceConstants, value, nameof(SettingSourceConstants))) OnSourceFilterChanged(); }
+        }
+
+        public bool SettingSourceReference
+        {
+            get => _settingSourceReference;
+            set { if (SetProperty(ref _settingSourceReference, value, nameof(SettingSourceReference))) OnSourceFilterChanged(); }
+        }
+
+        public bool SettingSourceScan
+        {
+            get => _settingSourceScan;
+            set { if (SetProperty(ref _settingSourceScan, value, nameof(SettingSourceScan))) OnSourceFilterChanged(); }
+        }
+
+        // --- Value sources: which sources contribute predefined values to a dropdown. ---
+        public bool ValueSourceCommon
+        {
+            get => _valueSourceCommon;
+            set { if (SetProperty(ref _valueSourceCommon, value, nameof(ValueSourceCommon))) OnSourceFilterChanged(); }
+        }
+
+        public bool ValueSourceDriver
+        {
+            get => _valueSourceDriver;
+            set { if (SetProperty(ref _valueSourceDriver, value, nameof(ValueSourceDriver))) OnSourceFilterChanged(); }
+        }
+
+        public bool ValueSourceConstants
+        {
+            get => _valueSourceConstants;
+            set { if (SetProperty(ref _valueSourceConstants, value, nameof(ValueSourceConstants))) OnSourceFilterChanged(); }
+        }
+
+        public bool ValueSourceReference
+        {
+            get => _valueSourceReference;
+            set { if (SetProperty(ref _valueSourceReference, value, nameof(ValueSourceReference))) OnSourceFilterChanged(); }
+        }
+
+        public bool ValueSourceScan
+        {
+            get => _valueSourceScan;
+            set { if (SetProperty(ref _valueSourceScan, value, nameof(ValueSourceScan))) OnSourceFilterChanged(); }
+        }
+
+        // Value dropdown behavior options (sub-options of the value sources).
+        public bool MergeDistinctValues
+        {
+            get => _mergeDistinctValues;
+            set { if (SetProperty(ref _mergeDistinctValues, value, nameof(MergeDistinctValues))) OnSourceFilterChanged(); }
+        }
+
+        public bool AddPredefinedAppListToCommon
+        {
+            get => _addPredefinedAppListToCommon;
+            set { if (SetProperty(ref _addPredefinedAppListToCommon, value, nameof(AddPredefinedAppListToCommon))) OnSourceFilterChanged(); }
+        }
+
+        public bool AppendAppListToCommonNames
+        {
+            get => _appendAppListToCommonNames;
+            set { if (SetProperty(ref _appendAppListToCommonNames, value, nameof(AppendAppListToCommonNames))) OnSourceFilterChanged(); }
+        }
+
+        public bool AddRawValueToCommon
+        {
+            get => _addRawValueToCommon;
+            set { if (SetProperty(ref _addRawValueToCommon, value, nameof(AddRawValueToCommon))) OnSourceFilterChanged(); }
+        }
+
+        // Setting-source sub-option: allow the name and description to come from inactive sources.
+        public bool AllowMetaFromInactiveSources
+        {
+            get => _allowMetaFromInactiveSources;
+            set { if (SetProperty(ref _allowMetaFromInactiveSources, value, nameof(AllowMetaFromInactiveSources))) OnSourceFilterChanged(); }
+        }
+
+        // Setting-source sub-option: prefix the setting id to the name. Display only - just
+        // recomputes the cached DisplayName, no profile reload (keeps scroll perf intact).
+        public bool ShowSettingIdInName
+        {
+            get => _showSettingIdInName;
+            set
+            {
+                if (SetProperty(ref _showSettingIdInName, value, nameof(ShowSettingIdInName)))
+                {
+                    if (_isInitializing)
+                        return;
+
+                    ApplySettingIdInName();
+                    SaveFilterPreferences();
+                }
+            }
+        }
+
+        // Availability flags used to disable flyout entries for sources that aren't present.
+        public bool IsReferenceAvailable => _metaService?.HasReferenceSource ?? false;
+
+        public bool IsScanAvailable => _scannerService?.CachedSettings != null && _scannerService.CachedSettings.Count > 0;
+
+        // Post-filter toggle (own button next to the source flyout): only show settings
+        // with a user override or an unsaved edit.
+        public bool ModifiedOnly
+        {
+            get => _modifiedOnly;
+            set
+            {
+                if (SetProperty(ref _modifiedOnly, value, nameof(ModifiedOnly)))
+                {
+                    RebuildSettingsView();
+                    SaveFilterPreferences();
+                }
+            }
+        }
+
+        // Compact sub-option of the setting-source filter: surface settings that are active
+        // in the current profile (predefined / global / user) regardless of their source.
+        // Re-reads the profile.
+        public bool ShowActiveFromDisabledSources
+        {
+            get => _showActiveFromDisabledSources;
+            set
+            {
+                if (SetProperty(ref _showActiveFromDisabledSources, value, nameof(ShowActiveFromDisabledSources)))
+                {
+                    if (_isInitializing)
+                        return;
+
+                    RefreshCurrentProfile();
+                    SaveFilterPreferences();
+                }
+            }
+        }
+
+        public string ApplicationsText
+        {
+            get => _applicationsText;
+            set => SetProperty(ref _applicationsText, value, nameof(ApplicationsText));
+        }
+
+        // True while the applications area is expanded to show all rows; reset to
+        // single-row whenever a profile is (re)loaded in RefreshCurrentProfile.
+        public bool ApplicationsExpanded
+        {
+            get => _applicationsExpanded;
+            set => SetProperty(ref _applicationsExpanded, value, nameof(ApplicationsExpanded));
+        }
+
+        // Set by the applications panel: true when the apps don't fit in one row,
+        // which drives the visibility of the expand/collapse toggle.
+        public bool ApplicationsHasOverflow
+        {
+            get => _applicationsHasOverflow;
+            set => SetProperty(ref _applicationsHasOverflow, value, nameof(ApplicationsHasOverflow));
+        }
+
+        public string SettingDescription
+        {
+            get => _settingDescription;
+            set => SetProperty(ref _settingDescription, value, nameof(SettingDescription));
+        }
+
+        public bool ShowDescriptions
+        {
+            get => _showDescriptions;
+            set
+            {
+                if (SetProperty(ref _showDescriptions, value, nameof(ShowDescriptions)))
+                {
+                    var settings = Common.Helper.UserSettings.LoadSettings();
+                    settings.ShowDescriptions = value;
+                    settings.SaveSettings();
+                }
+            }
+        }
+
+        public int PendingChangesCount => Settings.Count(x => x.IsModified);
+
+        public ObservableCollection<SettingItemViewModel> ModifiedSettingsSnapshot { get; } = new();
+
+        public void RefreshPendingSnapshot()
+        {
+            ModifiedSettingsSnapshot.Clear();
+            foreach (var s in Settings.Where(x => x.IsModified))
+                ModifiedSettingsSnapshot.Add(s);
+        }
+
+        public string ScanStatus
+        {
+            get => _scanStatus;
+            set => SetProperty(ref _scanStatus, value, nameof(ScanStatus));
+        }
+
+        private string _statusBarText = "";
+        public string StatusBarText
+        {
+            get => _statusBarText;
+            set => SetProperty(ref _statusBarText, value, nameof(StatusBarText));
+        }
+
+        public bool IsDevMode
+        {
+            get => _isDevMode;
+            set => SetProperty(ref _isDevMode, value, nameof(IsDevMode));
+        }
+
+        public int ScanProgress
+        {
+            get => _scanProgress;
+            set
+            {
+                if (SetProperty(ref _scanProgress, value, nameof(ScanProgress)))
+                    OnPropertyChanged(nameof(ScanProgressText));
+            }
+        }
+
+        public bool IsScanning
+        {
+            get => _isScanning;
+            set
+            {
+                if (SetProperty(ref _isScanning, value, nameof(IsScanning)))
+                {
+                    OnPropertyChanged(nameof(IsStatusFooterVisible));
+                    OnPropertyChanged(nameof(IsProgressFooterVisible));
+                    OnPropertyChanged(nameof(IsFooterVisible));
+                    OnPropertyChanged(nameof(ScanProgressText));
+                }
+            }
+        }
+
+        public bool IsUpdateAvailable
+        {
+            get => _isUpdateAvailable;
+            set
+            {
+                if (SetProperty(ref _isUpdateAvailable, value, nameof(IsUpdateAvailable)))
+                {
+                    OnPropertyChanged(nameof(VersionText));
+                    OnPropertyChanged(nameof(StatusVersionText));
+                    OnPropertyChanged(nameof(StatusUpdateHintText));
+                }
+            }
+        }
+
+        public SettingItemViewModel SelectedSetting
+        {
+            get => _selectedSetting;
+            set
+            {
+                if (SetProperty(ref _selectedSetting, value, nameof(SelectedSetting)))
+                    OnSelectedSettingChanged();
+            }
+        }
+
+        public bool ScrollIntoViewEnabled
+        {
+            get => _scrollIntoViewEnabled;
+            set => SetProperty(ref _scrollIntoViewEnabled, value, nameof(ScrollIntoViewEnabled));
+        }
+
+        public string SnackbarMessage
+        {
+            get => _snackbarMessage;
+            set => SetProperty(ref _snackbarMessage, value, nameof(SnackbarMessage));
+        }
+
+        public string SnackbarType
+        {
+            get => _snackbarType;
+            set => SetProperty(ref _snackbarType, value, nameof(SnackbarType));
+        }
+
+        public bool IsSnackbarActive
+        {
+            get => _isSnackbarActive;
+            set => SetProperty(ref _isSnackbarActive, value, nameof(IsSnackbarActive));
+        }
+
+        public string VersionText
+        {
+            get
+            {
+                var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                return v != null ? $"v{v.Major}.{v.Minor}.{v.Build}.{v.Revision}" : "";
+            }
+        }
+
+        public bool IsStatusFooterVisible => !IsScanning;
+        public bool IsProgressFooterVisible => IsScanning;
+        public bool IsFooterVisible => IsProgressFooterVisible || (IsStatusFooterVisible && ShowStatusFooter);
+        public string ScanProgressText => IsScanning ? $"{ScanProgress}%" : "";
+        public string StatusDriverText
+        {
+            get => _statusDriverText;
+            set => SetProperty(ref _statusDriverText, value, nameof(StatusDriverText));
+        }
+
+        public string StatusProfilesText
+        {
+            get => _statusProfilesText;
+            set => SetProperty(ref _statusProfilesText, value, nameof(StatusProfilesText));
+        }
+
+        public string StatusSettingsText
+        {
+            get => _statusSettingsText;
+            set => SetProperty(ref _statusSettingsText, value, nameof(StatusSettingsText));
+        }
+
+        public string StatusOtaText
+        {
+            get => _statusOtaText;
+            set => SetProperty(ref _statusOtaText, value, nameof(StatusOtaText));
+        }
+
+        public string StatusModeText
+        {
+            get => _statusModeText;
+            set => SetProperty(ref _statusModeText, value, nameof(StatusModeText));
+        }
+
+        public string StatusVersionText => VersionText;
+        public string StatusUpdateHintText => "Update available";
+        public bool IsExternalCustomSettingsIndicatorVisible => App.Bootstrapper?.IsExternalCustomSettings ?? false;
+
+        public bool IsAppearanceMenuOpen
+        {
+            get => _isAppearanceMenuOpen;
+            set
+            {
+                if (SetProperty(ref _isAppearanceMenuOpen, value, nameof(IsAppearanceMenuOpen)))
+                {
+                    if (!value)
+                        _appearanceMenuClosedAt = DateTime.UtcNow;
+                }
+            }
+        }
+
+        public string ToolbarOrientation
+        {
+            get => _toolbarOrientation;
+            set
+            {
+                var normalized = string.Equals(value, "Rail", StringComparison.OrdinalIgnoreCase) ? "Rail" : "Top";
+                if (SetProperty(ref _toolbarOrientation, normalized, nameof(ToolbarOrientation)))
+                {
+                    OnPropertyChanged(nameof(IsRailMode));
+                    OnPropertyChanged(nameof(IsTopMode));
+                    OnPropertyChanged(nameof(WindowMinWidth));
+                    var settings = Common.Helper.UserSettings.LoadSettings();
+                    settings.ToolbarOrientation = normalized;
+                    settings.SaveSettings();
+                }
+            }
+        }
+
+        public bool IsRailMode => string.Equals(_toolbarOrientation, "Rail", StringComparison.OrdinalIgnoreCase);
+
+        public bool IsTopMode => !IsRailMode;
+
+        public double WindowMinWidth => IsRailMode ? 950 : 1150;
+
+        public bool IsMidnightTheme
+        {
+            get => _isMidnightTheme;
+            set => SetProperty(ref _isMidnightTheme, value, nameof(IsMidnightTheme));
+        }
+
+        public bool IsSlateTheme
+        {
+            get => _isSlateTheme;
+            set => SetProperty(ref _isSlateTheme, value, nameof(IsSlateTheme));
+        }
+
+        public bool IsCleanWhiteTheme
+        {
+            get => _isCleanWhiteTheme;
+            set => SetProperty(ref _isCleanWhiteTheme, value, nameof(IsCleanWhiteTheme));
+        }
+
+        public bool IsVantaTheme
+        {
+            get => _isVantaTheme;
+            set => SetProperty(ref _isVantaTheme, value, nameof(IsVantaTheme));
+        }
+
+        public bool IsOnyxTheme
+        {
+            get => _isOnyxTheme;
+            set => SetProperty(ref _isOnyxTheme, value, nameof(IsOnyxTheme));
+        }
+
+        public bool IsEmberTheme
+        {
+            get => _isEmberTheme;
+            set => SetProperty(ref _isEmberTheme, value, nameof(IsEmberTheme));
+        }
+
+        public bool IsCompactDensity
+        {
+            get => _isCompactDensity;
+            set => SetProperty(ref _isCompactDensity, value, nameof(IsCompactDensity));
+        }
+
+        public bool IsClassicDensity
+        {
+            get => _isClassicDensity;
+            set => SetProperty(ref _isClassicDensity, value, nameof(IsClassicDensity));
+        }
+
+        public bool IsModernDensity => !IsCompactDensity && !IsClassicDensity;
+
+        public bool IsClassicTextRendering
+        {
+            get => _isClassicTextRendering;
+            set
+            {
+                if (SetProperty(ref _isClassicTextRendering, value, nameof(IsClassicTextRendering)))
+                    OnPropertyChanged(nameof(IsModernTextRendering));
+            }
+        }
+
+        public bool IsModernTextRendering => !IsClassicTextRendering;
+
+        public bool IsBackdropMica => string.Equals(_currentBackdropMode, "MainWindow", StringComparison.OrdinalIgnoreCase);
+
+        public bool IsBackdropMicaVariant =>
+            string.Equals(_currentBackdropMode, "Tabbed", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(_currentBackdropMode, "Default", StringComparison.OrdinalIgnoreCase);
+
+        public bool IsBackdropAcrylic => string.Equals(_currentBackdropMode, "Acrylic", StringComparison.OrdinalIgnoreCase);
+
+        public bool IsBackdropDisabled => string.Equals(_currentBackdropMode, "Disabled", StringComparison.OrdinalIgnoreCase);
+
+        public bool IsBackdropGlass => !_isWindows11 && !IsBackdropDisabled;
+
+        public bool IsWindows11 => _isWindows11;
+
+        public bool IsWindows10 => !_isWindows11;
+        public bool HasPendingChanges => Settings.Any(x => x.IsModified);
+
+        /// <summary>
+        /// Flattened settings view: group headers (<see cref="SettingGroupHeaderViewModel"/>)
+        /// followed by their visible <see cref="SettingItemViewModel"/> rows. Replaces the former
+        /// ListCollectionView grouping so the list virtualizes as a single flat panel.
+        /// </summary>
+        public ObservableCollection<object> GroupedSettingsView => _settingsViewItems;
+
+        public BulkObservableCollection<SettingItemViewModel> Settings { get; } = new BulkObservableCollection<SettingItemViewModel>();
+        public ObservableCollection<ModifiedProfileItem> ModifiedProfiles { get; } = new ObservableCollection<ModifiedProfileItem>();
+        public ObservableCollection<ApplicationItem> Applications { get; } = new ObservableCollection<ApplicationItem>();
+
+        public ICommand RefreshCommand { get; private set; }
+        public ICommand ApplyCommand { get; private set; }
+        public ICommand RestoreProfileCommand { get; private set; }
+        public ICommand CreateProfileCommand { get; private set; }
+        public ICommand DeleteProfileCommand { get; private set; }
+        public ICommand AddApplicationCommand { get; private set; }
+        public ICommand RemoveApplicationCommand { get; private set; }
+        public ICommand ImportProfileCommand { get; private set; }
+        public ICommand OpenBitEditorCommand { get; private set; }
+        public ICommand ResetValueCommand { get; private set; }
+        public ICommand CopySettingIdCommand { get; private set; }
+        public ICommand CopySettingsCommand { get; private set; }
+        public ICommand ToggleDevModeCommand { get; private set; }
+        public ICommand NavigateToGlobalCommand { get; private set; }
+        public ICommand RefreshCurrentProfileCommand { get; private set; }
+        public ICommand ClearFilterCommand { get; private set; }
+        public ICommand FocusFilterCommand { get; private set; }
+        public ICommand ToggleFavoriteCommand { get; private set; }
+        public AsyncRelayCommand ScanCommand { get; private set; }
+        public AsyncRelayCommand CheckUpdateCommand { get; private set; }
+        public ICommand ShowAboutCommand { get; private set; }
+        public ICommand ToggleAppearanceMenuCommand { get; private set; }
+        public ICommand ToggleFilterMenuCommand { get; private set; }
+        public ICommand ResetFilterDefaultsCommand { get; private set; }
+        public ICommand ApplyFilterPresetCommand { get; private set; }
+        public ICommand ShowCommandPaletteCommand { get; private set; }
+        public ICommand ShowPendingChangesCommand { get; private set; }
+        public ICommand ShowInstalledGamesCommand { get; private set; }
+        public ICommand SetThemeCommand { get; private set; }
+        public ICommand SetDensityCommand { get; private set; }
+        public ICommand SetTextRenderingCommand { get; private set; }
+        public ICommand SetStatusBarCommand { get; private set; }
+        public ICommand SetToolbarOrientationCommand { get; private set; }
+        public ICommand ShowExportDialogCommand { get; private set; }
+        public ICommand ShowImportDialogCommand { get; private set; }
+        public ICommand SetBackdropModeCommand { get; private set; }
+        public ICommand ShowCustomSettingsOverrideInfoCommand { get; private set; }
+
+        public event Action OnFocusFilter;
+        public event Action<uint, uint, string> OnOpenBitEditor;
+        public event Action OnRequestExport;
+        public event Action OnRequestImport;
+        public event Action<string> OnShowMessage;
+        public event Action<string> OnShowError;
+
+        public async void ShowSnackbar(string message, string type = "Information")
+        {
+            SnackbarMessage = message;
+            SnackbarType = type;
+            IsSnackbarActive = true;
+
+            var currentToken = ++_snackbarToken;
+            await Task.Delay(4000);
+
+            if (currentToken == _snackbarToken)
+            {
+                IsSnackbarActive = false;
+            }
+        }
+
+        private void InitializeCommands()
+        {
+            RefreshCommand = new RelayCommand(_ => RefreshAll());
+            RefreshCurrentProfileCommand = new RelayCommand(_ => RefreshCurrentProfile());
+            ApplyCommand = new RelayCommand(ApplyChanges);
+            RestoreProfileCommand = new AsyncRelayCommand(RestoreProfileAsync);
+            CreateProfileCommand = new RelayCommand(CreateProfile);
+            DeleteProfileCommand = new AsyncRelayCommand(DeleteProfileAsync);
+            AddApplicationCommand = new RelayCommand(_ => AddApplication());
+            RemoveApplicationCommand = new RelayCommand(param => RemoveApplication(param as ApplicationItem));
+            ImportProfileCommand = new RelayCommand(ImportProfile);
+            OpenBitEditorCommand = new RelayCommand(OpenBitEditor, () => SelectedSetting != null);
+            ResetValueCommand = new RelayCommand(ResetValue);
+            CopySettingIdCommand = new RelayCommand(CopySettingId);
+            CopySettingsCommand = new RelayCommand(CopySettingsToClipboard);
+            ToggleDevModeCommand = new RelayCommand(ToggleDevMode);
+            NavigateToGlobalCommand = new RelayCommand(_ => NavigateToGlobalProfile());
+            ClearFilterCommand = new RelayCommand(_ => FilterText = "");
+            FocusFilterCommand = new RelayCommand(_ => OnFocusFilter?.Invoke());
+            ToggleFavoriteCommand = new RelayCommand(ToggleFavorite);
+            ScanCommand = new AsyncRelayCommand(async () => await ScanProfilesAsync());
+            CheckUpdateCommand = new AsyncRelayCommand(CheckForUpdatesAsync);
+            ShowAboutCommand = new RelayCommand(_ => ShowAbout());
+            ToggleAppearanceMenuCommand = new RelayCommand(_ => ToggleAppearanceMenu());
+            ToggleFilterMenuCommand = new RelayCommand(_ => ToggleFilterMenu());
+            ResetFilterDefaultsCommand = new RelayCommand(_ => ResetFilterDefaults());
+            ApplyFilterPresetCommand = new RelayCommand(param => ApplyFilterPreset(param as string));
+            ShowCommandPaletteCommand = new RelayCommand(_ => ShowCommandPalette());
+            ShowPendingChangesCommand = new RelayCommand(_ => ShowPendingChanges());
+            ShowInstalledGamesCommand = new RelayCommand(_ => ShowInstalledGames());
+            SetThemeCommand = new RelayCommand(param => ApplyTheme(param as string));
+            SetDensityCommand = new RelayCommand(param => ApplyDensity(param as string));
+            SetTextRenderingCommand = new RelayCommand(param => ApplyTextRendering(param as string));
+            SetStatusBarCommand = new RelayCommand(param => ApplyStatusBar(param as string));
+            SetToolbarOrientationCommand = new RelayCommand(param => ApplyToolbarOrientation(param as string));
+            ShowExportDialogCommand = new RelayCommand(_ => RequestExport());
+            ShowImportDialogCommand = new RelayCommand(_ => RequestImport());
+            SetBackdropModeCommand = new RelayCommand(param => ApplyBackdropMode(param as string));
+            ShowCustomSettingsOverrideInfoCommand = new RelayCommand(_ => ShowCustomSettingsOverrideInfo());
+        }
+
+        public async Task InitializeAsync(bool skipInitialScan = false)
+        {
+            var startupWatch = Stopwatch.StartNew();
+            _isInitializing = true;
+            RefreshProfilesCombo(null);
+            RefreshCurrentProfile();
+
+            if (!skipInitialScan)
+                await ScanProfilesAsync();
+            Services.DropdownTrace.Log($"startup scan phase {startupWatch.ElapsedMilliseconds}ms (skipped={skipInitialScan})");
+
+            _isInitializing = false;
+            RefreshCurrentProfile();
+            CurrentProfile = _profileNames.FirstOrDefault()?.ProfileName;
+            OnPropertyChanged(nameof(IsGlobalProfile));
+            OnPropertyChanged(nameof(ShowApplicationsArea));
+            UpdateStatusBarText();
+            Services.DropdownTrace.Log($"startup first paint {startupWatch.ElapsedMilliseconds}ms");
+
+            // Paint first; the update badge fills in whenever it completes.
+            _ = CheckForUpdatesAsync();
+        }
+
+        private void UpdateStatusBarText()
+        {
+            try
+            {
+                var parts = new List<string>();
+
+                // Driver version and branch
+                var version = DrsSettingsServiceBase.DriverVersion;
+                var branch = DrsSettingsServiceBase.DriverBranch;
+                if (version > 0)
+                {
+                    var driverText = $"Driver: {version.ToString("0.00", CultureInfo.InvariantCulture)}";
+                    if (!string.IsNullOrEmpty(branch))
+                        driverText += $" ({branch})";
+                    parts.Add(driverText);
+                    StatusDriverText = driverText;
+                }
+                else
+                {
+                    StatusDriverText = "Driver unavailable";
+                }
+
+                // Profile count
+                var profileCount = _settingService.GetTotalProfileCount();
+                parts.Add($"{profileCount} profiles");
+                StatusProfilesText = $"{profileCount} profiles";
+
+                // Known / total settings
+                var knownIds = new HashSet<uint>();
+                if (_metaService.CustomMeta != null)
+                    foreach (var id in _metaService.CustomMeta.GetSettingIds()) knownIds.Add(id);
+                if (_metaService.ReferenceMeta != null)
+                    foreach (var id in _metaService.ReferenceMeta.GetSettingIds()) knownIds.Add(id);
+                var cachedSettings = _scannerService.CachedSettings;
+                if (cachedSettings != null && cachedSettings.Count > 0)
+                {
+                    // Show total known settings loaded from all XMLs, known settings that are in use in profiles, and total number seen in profiles.
+                    var scannedIds = new HashSet<uint>(cachedSettings.Select(s => s.SettingId));
+                    var inUse = knownIds.Count(id => scannedIds.Contains(id));
+                    var settingsText = $"{knownIds.Count} known ({inUse} in profiles / {scannedIds.Count} seen)";
+                    parts.Add(settingsText);
+                    StatusSettingsText = settingsText;
+                }
+                else
+                {
+                    var settingsText = $"{knownIds.Count} known settings";
+                    parts.Add(settingsText);
+                    StatusSettingsText = settingsText;
+                }
+
+                StatusModeText = IsExternalCustomSettingsIndicatorVisible ? "CSN file override" : "";
+
+                // Try fetching OTA profile update datetime
+                var otaRelPath = @"NVIDIA Corporation\Drs\update.bin";
+                var otaCandidates = new[]
+                {
+                    @"C:\ProgramData\" + otaRelPath,
+                    Path.Combine(Environment.GetEnvironmentVariable("SystemDrive") ?? @"C:", @"ProgramData", otaRelPath),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), otaRelPath),
+                };
+                var otaPath = otaCandidates.FirstOrDefault(File.Exists);
+                if (otaPath != null)
+                {
+                    var otaTime = File.GetLastWriteTime(otaPath);
+                    var otaText = $"OTA {otaTime:g}";
+                    parts.Add($"Last OTA profile update: {otaTime:g}");
+                    StatusOtaText = otaText;
+                }
+                else
+                {
+                    StatusOtaText = "OTA unknown";
+                }
+
+                StatusBarText = string.Join("  \u2022  ", parts);
+            }
+            catch
+            {
+                StatusBarText = "";
+                StatusDriverText = "";
+                StatusProfilesText = "";
+                StatusSettingsText = "";
+                StatusOtaText = "";
+                StatusModeText = "";
+            }
+        }
+
+        private void LoadSettings()
+        {
+            var settings = Common.Helper.UserSettings.LoadSettings();
+
+            _settingSourceCommon = settings.SettingSourceCommon;
+            _settingSourceDriver = settings.SettingSourceDriver;
+            _settingSourceConstants = settings.SettingSourceConstants;
+            _settingSourceReference = settings.SettingSourceReference;
+            _settingSourceScan = settings.SettingSourceScan;
+            _valueSourceCommon = settings.ValueSourceCommon;
+            _valueSourceDriver = settings.ValueSourceDriver;
+            _valueSourceConstants = settings.ValueSourceConstants;
+            _valueSourceReference = settings.ValueSourceReference;
+            _valueSourceScan = settings.ValueSourceScan;
+            _modifiedOnly = settings.ModifiedOnly;
+            _showActiveFromDisabledSources = settings.ShowActiveFromDisabledSources;
+            _mergeDistinctValues = settings.MergeDistinctValues;
+            _addPredefinedAppListToCommon = settings.AddPredefinedAppListToCommon;
+            _appendAppListToCommonNames = settings.AppendAppListToCommonNames;
+            _addRawValueToCommon = settings.AddRawValueToCommon;
+            _allowMetaFromInactiveSources = settings.AllowMetaFromInactiveSources;
+            _showSettingIdInName = settings.ShowSettingIdInName;
+            _isFilterAdvancedMode = settings.IsFilterAdvancedMode;
+            _isApplicationsCollapsed = settings.ApplicationsCollapsed;
+            _showStatusFooter = settings.ShowStatusFooter;
+            _showDescriptions = settings.ShowDescriptions;
+            OnPropertyChanged(nameof(ShowDescriptions));
+            _toolbarOrientation = string.Equals(settings.ToolbarOrientation, "Rail", StringComparison.OrdinalIgnoreCase) ? "Rail" : "Top";
+            OnPropertyChanged(nameof(ToolbarOrientation));
+            OnPropertyChanged(nameof(IsRailMode));
+            OnPropertyChanged(nameof(IsTopMode));
+            OnPropertyChanged(nameof(WindowMinWidth));
+            SettingItemViewModel.ShowSettingIdInName = _showSettingIdInName;
+            ApplySettingsFontFamily();
+
+            ApplySourceFilters();
+
+            if (App.Bootstrapper != null)
+            {
+                var themeManager = App.Bootstrapper.Resolve<ThemeManager>();
+                UpdateThemeProperties(themeManager);
+                UpdateDensityProperties(themeManager);
+                UpdateTextRenderingProperties(themeManager);
+            }
+
+            RefreshBackdropMode();
+        }
+
+
+
+        private void SaveFavorites()
+        {
+            var settings = Common.Helper.UserSettings.LoadSettings();
+            settings.FavoriteSettingIds.Clear();
+            foreach (var setting in Settings.Where(s => s.IsFavorite))
+            {
+                if (!settings.FavoriteSettingIds.Contains(setting.SettingId))
+                    settings.FavoriteSettingIds.Add(setting.SettingId);
+            }
+            settings.SaveSettings();
+        }
+
+        public void SaveSettings(double left, double top, double width, double height, WindowState state)
+        {
+            var settings = Common.Helper.UserSettings.LoadSettings();
+            settings.WindowLeft = (int)left;
+            settings.WindowTop = (int)top;
+            settings.WindowWidth = (int)width;
+            settings.WindowHeight = (int)height;
+            settings.WindowState = state;
+
+            if (NvapiDrsWrapper.Instance.IsMockMode)
+                settings.Win11BackdropMode = NvapiDrsWrapper.Instance.GetMockWin11BackdropMode();
+
+            settings.SaveSettings();
+        }
+
+        private async void OnCurrentProfileChanged()
+        {
+            OnPropertyChanged(nameof(IsGlobalProfile));
+            OnPropertyChanged(nameof(ShowApplicationsArea));
+
+            // Defer to avoid blocking UI during selection
+            await System.Windows.Application.Current.Dispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Background,
+                new Action(() => RefreshCurrentProfile()));
+        }
+
+        private void OnFilterTextChanged()
+        {
+            RebuildSettingsView();
+        }
+
+        private bool FilterPredicate(object obj)
+        {
+            if (obj is SettingItemViewModel item)
+            {
+                // Modified Only shows settings that are active (forced) or have an unsaved edit.
+                if (_modifiedOnly && !item.IsForced && !item.IsModified)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(_filterText))
+                    return true;
+
+                var query = _filterText.Trim();
+                string nameToCheck = item.DisplayName ?? "";
+                string altNamesToCheck = item.AlternateNames ?? "";
+
+                if (nameToCheck.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+                if (!string.IsNullOrEmpty(altNamesToCheck) &&
+                    altNamesToCheck.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+                if (item.SettingIdHex.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            }
+            return false;
+        }
+
+        private HashSet<string> GetHiddenSettingGroups()
+        {
+            if (_hiddenSettingGroups == null)
+            {
+                var stored = UserSettings.LoadSettings()?.HiddenSettingGroups;
+                _hiddenSettingGroups = stored != null
+                    ? new HashSet<string>(stored)
+                    : new HashSet<string>();
+            }
+            return _hiddenSettingGroups;
+        }
+
+        /// <summary>
+        /// Projects the sorted (and filtered) settings into the flat view collection:
+        /// one header item per group followed by its rows when the group is expanded.
+        /// Published as a single Reset so the list rebuilds at most one viewport of containers.
+        /// </summary>
+        private void RebuildSettingsView()
+        {
+            var hiddenGroups = GetHiddenSettingGroups();
+            var viewItems = new List<object>(Settings.Count + 64);
+
+            SettingGroupHeaderViewModel currentHeader = null;
+            var currentItems = new List<SettingItemViewModel>();
+            var groups = new List<(SettingGroupHeaderViewModel Header, List<SettingItemViewModel> Items)>();
+            foreach (var item in Settings)
+            {
+                if (!FilterPredicate(item))
+                    continue;
+
+                var groupName = item.GroupNameForDisplay ?? "";
+                if (currentHeader == null || !string.Equals(currentHeader.Name, groupName, StringComparison.Ordinal))
+                {
+                    currentHeader = new SettingGroupHeaderViewModel(groupName, !hiddenGroups.Contains(groupName), OnGroupExpandedChanged);
+                    currentItems = new List<SettingItemViewModel>();
+                    groups.Add((currentHeader, currentItems));
+                }
+
+                currentItems.Add(item);
+            }
+
+            foreach (var (header, items) in groups)
+            {
+                header.Count = items.Count;
+                header.ModifiedCount = items.Count(x => x.IsModified);
+                viewItems.Add(header);
+
+                if (header.IsExpanded)
+                    viewItems.AddRange(items);
+            }
+
+            _settingsViewItems.ReplaceAll(viewItems);
+
+            var rows = 0;
+            foreach (var v in viewItems)
+                if (v is SettingItemViewModel)
+                    rows++;
+            VisibleSettingsCount = rows;
+            OnPropertyChanged(nameof(ResultsCountText));
+            OnPropertyChanged(nameof(IsSettingsListEmpty));
+            OnPropertyChanged(nameof(EmptyStateHintText));
+            if (rows == 0)
+                Services.DropdownTrace.Log("view empty profile=" + (_currentProfile ?? "<global>") + " filter='" + _filterText + "' modifiedOnly=" + _modifiedOnly + " total=" + Settings.Count);
+        }
+
+        private void OnGroupExpandedChanged(SettingGroupHeaderViewModel header)
+        {
+            var hiddenGroups = GetHiddenSettingGroups();
+            if (header.IsExpanded)
+                hiddenGroups.Remove(header.Name);
+            else
+                hiddenGroups.Add(header.Name);
+
+            // Groups without a name are runtime-only; everything else is persisted like before.
+            if (!string.IsNullOrEmpty(header.Name))
+            {
+                var settings = UserSettings.LoadSettings();
+                if (settings != null)
+                {
+                    settings.HiddenSettingGroups.Remove(header.Name);
+                    if (!header.IsExpanded)
+                        settings.HiddenSettingGroups.Add(header.Name);
+                    settings.SaveSettings();
+                }
+            }
+
+            RebuildSettingsView();
+        }
+
+        private void OnSelectedSettingChanged()
+        {
+            if (_selectedSetting == null)
+            {
+                SettingDescription = "";
+                return;
+            }
+
+            var description = _metaService.GetDescription(_selectedSetting.SettingId);
+            description = DlssHelper.ReplaceDlssVersions(description ?? "");
+            if (!string.IsNullOrEmpty(_selectedSetting.AlternateNames))
+                description = $"Alternate names: {_selectedSetting.AlternateNames}\r\n{description}";
+
+            SettingDescription = description?.Replace("\\r\\n", "\r\n") ?? "";
+
+            OnPropertyChanged(nameof(HasPendingChanges));
+            OnPropertyChanged(nameof(PendingChangesCount));
+        }
+
+        public bool TryValidateSettingValue(SettingItemViewModel item, out string errorMessage)
+        {
+            errorMessage = null;
+
+            if (item == null)
+                return true;
+
+            // Validate strictly by the item's effective type; the value lists alone are not
+            // a reliable type indicator (any of them may be empty-but-present).
+            switch (item.SettingType)
+            {
+                case NVDRS_SETTING_TYPE.NVDRS_DWORD_TYPE:
+                {
+                    var settingMeta = new SettingMeta { DwordValues = item.DwordValues };
+                    if (DrsUtil.TryParseDwordSettingValue(settingMeta, item.SelectedValue, out _))
+                        return true;
+
+                    errorMessage = "Enter a valid DWORD value.";
+                    return false;
+                }
+
+                case NVDRS_SETTING_TYPE.NVDRS_QWORD_TYPE:
+                {
+                    var settingMeta = new SettingMeta { QwordValues = item.QwordValues };
+                    if (DrsUtil.TryParseQwordSettingValue(settingMeta, item.SelectedValue, out _))
+                        return true;
+
+                    errorMessage = "Enter a valid QWORD value.";
+                    return false;
+                }
+
+                case NVDRS_SETTING_TYPE.NVDRS_BINARY_TYPE:
+                {
+                    var settingMeta = new SettingMeta { BinaryValues = item.BinaryValues };
+                    if (DrsUtil.ParseBinarySettingValue(settingMeta, item.SelectedValue) != null)
+                        return true;
+
+                    errorMessage = "Enter a valid binary value.";
+                    return false;
+                }
+
+                default:
+                    // String settings accept free text.
+                    return true;
+            }
+        }
+
+        private async void RefreshAll()
+        {
+            if (IsScanning)
+                return;
+            DrsSessionScope.DestroyGlobalSession();
+            FilterText = "";
+            await ScanProfilesAsync(true);
+            UpdateStatusBarText();
+        }
+
+        private void RefreshProfilesCombo(string lastCurrentProfile)
+        {
+            _profileNames.Clear();
+            var names = _settingService.GetProfileNames(ref _baseProfileName);
+            foreach (var name in names)
+                _profileNames.Add(new ProfileListItem(name, _scannerService.UserProfiles.Contains(name)));
+
+            ModifiedProfiles.Clear();
+            foreach (var profile in _scannerService.ModifiedProfiles.OrderBy(x => x))
+            {
+                ModifiedProfiles.Add(new ModifiedProfileItem(
+                    profile,
+                    _scannerService.UserProfiles.Contains(profile)));
+            }
+
+            OnPropertyChanged(nameof(IsGlobalProfile));
+            OnPropertyChanged(nameof(ShowApplicationsArea));
+
+            if (string.IsNullOrEmpty(lastCurrentProfile) || !_profileNames.Any(x => x.ProfileName == lastCurrentProfile))
+                SetCurrentProfile(_profileNames.FirstOrDefault()?.ProfileName, forceNotify: true);
+            else
+            {
+                SetCurrentProfile(lastCurrentProfile, forceNotify: true);
+            }
+        }
+
+        private void SetCurrentProfile(string profileName, bool forceNotify = false)
+        {
+            var profileNameToCheck = profileName;
+            if (profileNameToCheck == DrsSettingsService.GlobalProfileName)
+                profileNameToCheck = null;
+
+            if (SetProperty(ref _currentProfile, profileNameToCheck, nameof(CurrentProfile)))
+            {
+                if (!_isInitializing)
+                    OnCurrentProfileChanged();
+            }
+            else if (forceNotify)
+            {
+                OnPropertyChanged(nameof(CurrentProfile));
+                OnPropertyChanged(nameof(IsGlobalProfile));
+                OnPropertyChanged(nameof(ShowApplicationsArea));
+            }
+        }
+
+        private void RefreshCurrentProfile()
+        {
+            Services.DropdownTrace.Log("refresh profile=" + (_currentProfile ?? "<global>"));
+            // Make sure freshly built rows pick up the current "setting id in name" option.
+            SettingItemViewModel.ShowSettingIdInName = _showSettingIdInName;
+
+            // A freshly opened profile always starts collapsed to a single row.
+            ApplicationsExpanded = false;
+            Applications.Clear();
+
+            var applications = new Dictionary<string, string>();
+            var items = _settingService.GetSettingsForProfile(_currentProfile, _showActiveFromDisabledSources, ref applications);
+
+            ApplicationsText = string.Join(", ", applications.Select(x => x.Value));
+            foreach (var app in applications)
+                Applications.Add(new ApplicationItem { Key = app.Key, Name = app.Value });
+            OnPropertyChanged(nameof(ApplicationsCount));
+
+            OnPropertyChanged(nameof(IsGlobalProfile));
+            OnPropertyChanged(nameof(ShowApplicationsArea));
+
+            var tempSettings = new List<SettingItemViewModel>();
+            foreach (var item in items)
+            {
+                if (item.IsSettingHidden && !_isDevMode)
+                    continue;
+
+                var vm = new SettingItemViewModel(item);
+                var meta = _metaService.GetSettingMeta(item.SettingId);
+                vm.DwordValues = meta?.DwordValues;
+                vm.QwordValues = meta?.QwordValues;
+                vm.StringValues = meta?.StringValues;
+                vm.BinaryValues = meta?.BinaryValues;
+                tempSettings.Add(vm);
+            }
+
+            var settings = UserSettings.LoadSettings();
+            if (settings.FavoriteSettingIds != null)
+            {
+                var favoriteIds = new HashSet<uint>(settings.FavoriteSettingIds);
+                foreach (var setting in tempSettings)
+                {
+                    setting.IsFavorite = favoriteIds.Contains(setting.SettingId);
+                }
+            }
+
+            var sortedSettings = tempSettings
+                .OrderByDescending(x => x.IsFavorite)
+                .ThenBy(x => string.IsNullOrEmpty(x.GroupNameForDisplay) ? 1 : 0)
+                .ThenBy(x => x.GroupNameForDisplay)
+                .ThenBy(x => x.DisplayName)
+                .ToList();
+
+            Settings.IncrementalPatchSettingsListOrdered(sortedSettings, (s1, s2) => s1.SettingId == s2.SettingId);
+
+            RebuildSettingsView();
+
+            for (var i = 0; i < Settings.Count; i++)
+            {
+                Settings[i].IsModified = false;
+            }
+            OnPropertyChanged(nameof(HasPendingChanges));
+            OnPropertyChanged(nameof(PendingChangesCount));
+
+            // Re-fetch the description for the kept selection so a source/option change
+            // (which can change the resolved description) is reflected without re-selecting.
+            OnSelectedSettingChanged();
+        }
+
+        private void ApplyChanges()
+        {
+            var oldSelectedSettingId = _selectedSetting?.SettingId;
+
+            var settingsToStore = new List<KeyValuePair<uint, string>>();
+
+            foreach (var item in Settings)
+            {
+                var original = item.OriginalItem;
+                var currentValue = item.SelectedValue;
+
+                if (original.ValueText != currentValue || item.IsModified && item.IsInheritedGlobalValue)
+                    settingsToStore.Add(new KeyValuePair<uint, string>(item.SettingId, currentValue));
+            }
+
+            if (settingsToStore.Count > 0)
+            {
+                _settingService.StoreSettingsToProfile(_currentProfile, settingsToStore);
+                AddModifiedProfileToCache(_currentProfile, _scannerService.UserProfiles.Contains(_currentProfile));
+                RefreshCurrentProfile();
+                ShowSnackbar("Settings applied successfully.", "Success");
+            }
+        }
+
+        private void OnSettingsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        {
+            if (e.OldItems != null)
+            {
+                foreach (SettingItemViewModel item in e.OldItems)
+                {
+                    item.PropertyChanged -= OnSettingItemPropertyChanged;
+                }
+            }
+
+            if (e.NewItems != null)
+            {
+                foreach (SettingItemViewModel item in e.NewItems)
+                {
+                    item.PropertyChanged += OnSettingItemPropertyChanged;
+                }
+            }
+
+            OnPropertyChanged(nameof(HasPendingChanges));
+            OnPropertyChanged(nameof(PendingChangesCount));
+        }
+
+        private void OnSettingItemPropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(SettingItemViewModel.IsModified))
+            {
+                OnPropertyChanged(nameof(HasPendingChanges));
+                OnPropertyChanged(nameof(PendingChangesCount));
+            }
+        }
+
+        private void RemoveModifiedProfileFromCache(string profileName)
+        {
+            if (string.IsNullOrWhiteSpace(profileName))
+                return;
+
+            var modifiedProfile = ModifiedProfiles.FirstOrDefault(x =>
+                x.ProfileName.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+            if (modifiedProfile != null)
+                ModifiedProfiles.Remove(modifiedProfile);
+
+            _scannerService.ModifiedProfiles.RemoveAll(x =>
+                x.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+
+            _scannerService.UserProfiles.RemoveWhere(x =>
+                x.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private void AddModifiedProfileToCache(string profileName, bool isUserDefined)
+        {
+            if (string.IsNullOrWhiteSpace(profileName))
+                return;
+
+            if (!ModifiedProfiles.Any(x => x.ProfileName.Equals(profileName, StringComparison.OrdinalIgnoreCase)))
+            {
+                var insertIndex = 0;
+                while (insertIndex < ModifiedProfiles.Count &&
+                       string.Compare(ModifiedProfiles[insertIndex].ProfileName, profileName, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    insertIndex++;
+                }
+
+                ModifiedProfiles.Insert(insertIndex, new ModifiedProfileItem(profileName, isUserDefined));
+            }
+
+            if (!_scannerService.ModifiedProfiles.Any(x => x.Equals(profileName, StringComparison.OrdinalIgnoreCase)))
+            {
+                _scannerService.ModifiedProfiles.Add(profileName);
+                _scannerService.ModifiedProfiles = _scannerService.ModifiedProfiles
+                    .OrderBy(x => x)
+                    .ToList();
+            }
+
+            if (isUserDefined)
+                _scannerService.UserProfiles.Add(profileName);
+        }
+
+        private Task RestoreProfileAsync()
+        {
+            var result = MessageBoxEx.Show(
+                "Restore profile to NVIDIA driver defaults?",
+                "Restore Profile",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                var lastProfile = _currentProfile;
+
+                bool removeFromModified;
+                _settingService.ResetProfile(_currentProfile, out removeFromModified);
+
+                if (removeFromModified)
+                    RemoveModifiedProfileFromCache(_currentProfile);
+
+
+                RefreshProfilesCombo(lastProfile);
+
+                RefreshCurrentProfile();
+
+                ShowSnackbar($"Profile successfully restored to driver defaults!", "Success");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private void CreateProfile()
+        {
+            ShowCreateProfileDialog("");
+        }
+
+        public bool ShowCreateProfileDialog(string nameProposal, string applicationName = null)
+        {
+            var dialog = new Views.Dialogs.InputDialog("Create Profile",
+            "Enter a unique name for your new custom driver profile.",
+            nameProposal ?? "", false, (val) =>
+            {
+                if (string.IsNullOrWhiteSpace(val)) return "Expected is a unique profile name.";
+                if (_profileNames.Any(p => p.ProfileName.Equals(val, StringComparison.OrdinalIgnoreCase)))
+                    return "Profile name must be unique.";
+                return null;
+            });
+            dialog.Owner = App.Current.MainWindow;
+
+            if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.InputValue))
+            {
+                try
+                {
+                    _settingService.CreateProfile(dialog.InputValue, applicationName);
+                    AddModifiedProfileToCache(dialog.InputValue, isUserDefined: true);
+                    RefreshProfilesCombo(dialog.InputValue);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    OnShowError?.Invoke(ex.Message);
+                }
+            }
+
+            return false;
+        }
+
+        private Task DeleteProfileAsync()
+        {
+            var result = MessageBoxEx.Show(
+                $"Really delete this profile?\r\n\r\nNote: NVIDIA predefined profiles can not be restored until next driver installation!",
+                "Delete Profile",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    var deletedProfileName = _currentProfile;
+                    _settingService.DeleteProfile(_currentProfile);
+                    RemoveModifiedProfileFromCache(deletedProfileName);
+                    RefreshProfilesCombo(null);
+                    SetCurrentProfile(DrsSettingsService.GlobalProfileName, forceNotify: true);
+                    ShowSnackbar("Profile successfully deleted.", "Success");
+                }
+                catch (Exception ex)
+                {
+                    OnShowError?.Invoke(ex.Message);
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private string NormalizeNvidiaAppPath(string input)
+        {
+            return input.ToLower().Replace("\\", "/");
+        }
+
+        public void AddApplication()
+        {
+            var dialog = new Views.Dialogs.InputDialog("Add Application",
+            "To link a new application, enter its filename (e.g. game.exe), relative path, or UWP ID. If you need to link a specific file location, use the browse button for an absolute path.",
+            "", true, (val) =>
+            {
+                if (string.IsNullOrWhiteSpace(val)) 
+                    return "Expected a filename, relative path, UWP ID, or absolute path.";
+
+                if (Applications.Any(_ => _.Name.Equals(NormalizeNvidiaAppPath(val), StringComparison.InvariantCultureIgnoreCase)))
+                    return "Application already exists in this profile.";
+
+                string findFileStr = "FindFile=";
+                int findFileIndex = val.IndexOf(findFileStr, StringComparison.OrdinalIgnoreCase);
+                if (findFileIndex >= 0)
+                {
+                    string appName = val.Substring(0, findFileIndex).Trim().Trim('"');
+                    string findFile = val.Substring(findFileIndex + findFileStr.Length).Trim().Trim('"');
+                    if (string.IsNullOrWhiteSpace(appName) || string.IsNullOrWhiteSpace(findFile))
+                        return "Expected a valid filename and FindFile string.";
+                }
+                return null;
+            });
+            dialog.Owner = App.Current.MainWindow;
+
+            if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.InputValue))
+            {
+                try
+                {
+                    string findFileStr = "FindFile=";
+                    int findFileIndex = dialog.InputValue.IndexOf(findFileStr, StringComparison.InvariantCultureIgnoreCase);
+
+                    if (findFileIndex >= 0)
+                    {
+                        string appName = dialog.InputValue.Substring(0, findFileIndex).Trim().Trim('"');
+                        string findFile = dialog.InputValue.Substring(findFileIndex + findFileStr.Length).Trim().Trim('"');
+                        if (string.IsNullOrWhiteSpace(appName) || string.IsNullOrWhiteSpace(findFile))
+                        {
+                            OnShowError?.Invoke("Invalid application name or FindFile string.");
+                            return;
+                        }
+                        _settingService.AddApplication(_currentProfile, appName, findFile);
+                    }
+                    else
+                    {
+                        _settingService.AddApplication(_currentProfile, dialog.InputValue);
+                    }
+
+                    RefreshCurrentProfile();
+                }
+                catch (NvapiException ex)
+                {
+                    if (ex.Status == NvAPI_Status.NVAPI_EXECUTABLE_ALREADY_IN_USE)
+                    {
+                        var profileName = _settingService.GetProfileNameByExeName(dialog.InputValue);
+                        if (!string.IsNullOrWhiteSpace(profileName))
+                            OnShowError?.Invoke($"Application already in use by profile '{profileName}'");
+                        else
+                            OnShowError?.Invoke("Application already in use by other profile");
+                    }
+                    else
+                        OnShowError?.Invoke(ex.Message);
+                }
+            }
+        }
+
+        public void RemoveApplication(ApplicationItem app)
+        {
+            if (app != null)
+            {
+                var result = MessageBoxEx.Show(
+                    $"Remove application '{app.Name}' from profile?",
+                    "Remove Application",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    _settingService.RemoveApplication(_currentProfile, app.Key);
+                    RefreshCurrentProfile();
+                }
+            }
+        }
+
+        public void ExportCurrentProfile(bool includePredefined)
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                DefaultExt = "*.nip",
+                Filter = "NVIDIA PROFILE INSPECTOR Profiles|*.nip",
+                FileName = ProfileExportFileNames.ForCurrentProfile(_currentProfile)
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var profiles = new List<string> { _currentProfile };
+                _importService.ExportProfiles(profiles, dialog.FileName, includePredefined);
+                ShowSnackbar("Current Profile exported successfully!", "Success");
+            }
+        }
+
+        public async Task ExportAllCustomizedProfilesAsync()
+        {
+            if (IsScanning)
+            {
+                ShowSnackbar("Waiting for the modified profiles scan to finish...", "Information");
+                await WaitForActiveScanAsync();
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                DefaultExt = "*.nip",
+                Filter = "NVIDIA PROFILE INSPECTOR Profiles|*.nip",
+                FileName = ProfileExportFileNames.ForAllCustomizedProfiles()
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var modifiedProfiles = _scannerService.ModifiedProfiles
+                    .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                    .OrderBy(profileName => profileName, StringComparer.InvariantCultureIgnoreCase)
+                    .ToList();
+
+                if (modifiedProfiles.Any())
+                    _importService.ExportProfiles(modifiedProfiles, dialog.FileName, includePredefined: false);
+                else
+                    _importService.ExportAllCustomizedProfiles(dialog.FileName);
+
+                ShowSnackbar("All customized profiles exported successfully!", "Success");
+            }
+        }
+
+        public void ExportAllProfilesNVIDIAFormat()
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                DefaultExt = "*.txt",
+                Filter = "NVIDIA Text Files|*.txt",
+                FileName = ProfileExportFileNames.ForNvidiaTextProfiles()
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                _importService.ExportAllProfilesToNvidiaTextFile(dialog.FileName);
+                ShowSnackbar("All profiles exported in NVIDIA text format!", "Success");
+            }
+        }
+
+        private void ImportProfile()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                DefaultExt = "*.nip",
+                Filter = "NVIDIA PROFILE INSPECTOR Profiles|*.nip"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                ImportFile(dialog.FileName);
+            }
+        }
+
+        public string ImportFile(string filePath)
+        {
+            try
+            {
+                var report = ImportFiles(new[] { filePath });
+                return report ?? "";
+            }
+            catch (Exception ex)
+            {
+                OnShowError?.Invoke($"Import Error: {ex.Message}");
+                return ex.Message;
+            }
+        }
+
+        public string ImportFiles(IEnumerable<string> filePaths, ProfileImportMode mode = ProfileImportMode.Replace)
+        {
+            try
+            {
+                var normalizedFiles = (filePaths ?? Enumerable.Empty<string>())
+                    .Where(File.Exists)
+                    .Where(path => string.Equals(Path.GetExtension(path), ".nip", StringComparison.InvariantCultureIgnoreCase))
+                    .Select(Path.GetFullPath)
+                    .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                    .ToArray();
+                var report = _importService.ImportProfiles(normalizedFiles, mode);
+
+                RefreshProfilesCombo(_currentProfile);
+                RefreshCurrentProfile();
+                return report ?? "";
+            }
+            catch (Exception ex)
+            {
+                OnShowError?.Invoke($"Import Error: {ex.Message}");
+                return ex.Message;
+            }
+        }
+
+        // Whether the given files would import into an already-existing profile (and thus
+        // need a merge-vs-replace decision). Importing only new profiles just creates them.
+        public bool ImportTargetsExistingProfile(IEnumerable<string> filePaths)
+        {
+            var normalizedFiles = (filePaths ?? Enumerable.Empty<string>())
+                .Where(File.Exists)
+                .Where(path => string.Equals(Path.GetExtension(path), ".nip", StringComparison.InvariantCultureIgnoreCase))
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                .ToArray();
+
+            return _importService.AnyImportedProfileExists(normalizedFiles);
+        }
+
+        public void ImportProfiles()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                DefaultExt = "*.nip",
+                Filter = "NVIDIA PROFILE INSPECTOR Profiles|*.nip",
+                Multiselect = true
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var report = ImportFiles(dialog.FileNames);
+                if (string.IsNullOrEmpty(report))
+                    ShowSnackbar("Profile(s) successfully imported!", "Success");
+                else
+                    ShowSnackbar($"Some profile(s) could not imported!\r\n\r\n{report}", "Warning");
+            }
+        }
+
+        public void MergeImportedProfiles()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                DefaultExt = "*.nip",
+                Filter = "NVIDIA PROFILE INSPECTOR Profiles|*.nip",
+                Multiselect = true
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var normalizedFiles = dialog.FileNames
+                    .Where(File.Exists)
+                    .Where(path => string.Equals(Path.GetExtension(path), ".nip", StringComparison.InvariantCultureIgnoreCase))
+                    .Select(Path.GetFullPath)
+                    .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                    .ToArray();
+
+                try
+                {
+                    var report = _importService.MergeProfiles(normalizedFiles);
+                    RefreshProfilesCombo(_currentProfile);
+                    RefreshCurrentProfile();
+
+                    if (string.IsNullOrEmpty(report))
+                        ShowSnackbar("Imported profile(s) were merged successfully.", "Success");
+                    else
+                        ShowSnackbar($"Merge completed with warnings:\r\n\r\n{report}", "Warning");
+                }
+                catch (Exception ex)
+                {
+                    OnShowError?.Invoke($"Import Error: {ex.Message}");
+                }
+            }
+        }
+
+        public void ImportAllProfilesNVIDIAFormat()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                DefaultExt = "*.txt",
+                Filter = "NVIDIA Text Files|*.txt"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    _importService.ImportAllProfilesFromNvidiaTextFile(dialog.FileName);
+                    RefreshCurrentProfile();
+                    ShowSnackbar("All profiles imported successfully!", "Success");
+                }
+                catch (Exception ex)
+                {
+                    OnShowError?.Invoke($"Import Error: {ex.Message}");
+                }
+            }
+        }
+
+        public void SelectProfile(string profileName)
+        {
+            if (string.Equals(profileName, _baseProfileName, StringComparison.OrdinalIgnoreCase))
+                profileName = DrsSettingsService.GlobalProfileName;
+
+            if (_profileNames.Any(x => x.ProfileName == profileName))
+                SetCurrentProfile(profileName, forceNotify: true);
+        }
+
+        public string FindProfilesUsingApplication(string applicationName)
+        {
+            return _scannerService.FindProfilesUsingApplication(applicationName);
+        }
+
+        private void OpenBitEditor()
+        {
+            if (_selectedSetting == null)
+                return;
+
+            var rawValue = _selectedSetting.ValueRaw;
+            if (rawValue.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                rawValue = rawValue.Substring(2);
+
+            if (uint.TryParse(rawValue, System.Globalization.NumberStyles.AllowHexSpecifier, null, out uint value))
+            {
+                OnOpenBitEditor?.Invoke(_selectedSetting.SettingId, value, _selectedSetting.DisplayName);
+            }
+        }
+
+        public void SetDwordValue(uint settingId, uint value)
+        {
+            var item = Settings.FirstOrDefault(x => x.SettingId == settingId);
+            if (item != null)
+            {
+                item.SelectedValue = $"0x{value:X8}";
+                OnPropertyChanged(nameof(Settings));
+            }
+        }
+
+        private void ResetValue(object parameter)
+        {
+            if (parameter is SettingItemViewModel item && item.IsModified)
+            {
+                item.ResetToOriginalValue();
+                OnPropertyChanged(nameof(HasPendingChanges));
+                OnPropertyChanged(nameof(PendingChangesCount));
+                return;
+            }
+
+            if (_selectedSetting == null || !_selectedSetting.IsUserDefined)
+                return;
+
+            var selectedSettingId = _selectedSetting.SettingId;
+            var settingName = _selectedSetting.DisplayName;
+
+            bool removeFromModified;
+            _settingService.ResetValue(_currentProfile, selectedSettingId, out removeFromModified);
+            RefreshCurrentProfile();
+
+            ShowSnackbar($"\"{settingName}\" restored to NVIDIA default.", "Success");
+        }
+
+        private void CopySettingsToClipboard()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"### NVIDIA PROFILE INSPECTOR ###");
+            sb.AppendLine($"Profile: {_currentProfile}");
+            sb.AppendLine();
+
+            foreach (var item in Settings.Where(x => x.IsUserDefined))
+            {
+                sb.AppendLine($"{item.DisplayName,-40} {item.SelectedValue}");
+            }
+
+            Clipboard.SetText(sb.ToString());
+            ShowSnackbar("Settings copied to clipboard!", "Success");
+        }
+
+        // Double-click on a setting name copies its setting id to the clipboard.
+        private void CopySettingId(object parameter)
+        {
+            if (!(parameter is SettingItemViewModel item))
+                return;
+
+            try
+            {
+                Clipboard.SetText(item.SettingIdHex);
+                ShowSnackbar($"Setting ID {item.SettingIdHex} copied to clipboard.", "Success");
+            }
+            catch
+            {
+            }
+        }
+
+        // Re-applies the "setting id in name" option in place (no profile reload).
+        private void ApplySettingIdInName()
+        {
+            SettingItemViewModel.ShowSettingIdInName = _showSettingIdInName;
+            ApplySettingsFontFamily();
+            foreach (var setting in Settings)
+                setting.RefreshDisplayName();
+        }
+
+        // Monospace column alignment only makes sense once the setting id is shown in the
+        // list, so the font switches together with that option (settings list + value list).
+        private void ApplySettingsFontFamily()
+        {
+            if (Application.Current == null)
+                return;
+
+            Application.Current.Resources["SettingsFontFamily"] =
+                new FontFamily(_showSettingIdInName ? "Consolas" : "Segoe UI Variable Text, Segoe UI");
+        }
+
+        private void ToggleDevMode()
+        {
+            IsDevMode = !IsDevMode;
+            RefreshCurrentProfile();
+        }
+
+        private void NavigateToGlobalProfile()
+        {
+            if (_profileNames.Count > 0)
+                SetCurrentProfile(_profileNames[0].ProfileName, forceNotify: true);
+        }
+
+        private void ToggleFavorite(object parameter)
+        {
+            if (parameter == null)
+                return;
+
+            var setting = parameter as SettingItemViewModel;
+            if (setting == null)
+                return;
+
+            setting.IsFavorite = !setting.IsFavorite;
+
+            SaveFavorites();
+
+            ReorderSettingsWithPosition(setting.IsFavorite);
+        }
+
+        public void ReorderSettingsWithPosition(bool targetIsFavorit)
+        {
+            var sortedSettings = Settings
+                .OrderByDescending(x => x.IsFavorite)
+                .ThenBy(x => string.IsNullOrEmpty(x.GroupNameForDisplay) ? 1 : 0)
+                .ThenBy(x => x.GroupNameForDisplay)
+                .ThenBy(x => x.DisplayName)
+                .ToList();
+
+            Settings.IncrementalPatchSettingsListOrdered(sortedSettings, (s1, s2) => s1.SettingId == s2.SettingId);
+
+            RebuildSettingsView();
+        }
+
+        private void ToggleAppearanceMenu()
+        {
+            if (IsAppearanceMenuOpen)
+            {
+                IsAppearanceMenuOpen = false;
+            }
+            else if ((DateTime.UtcNow - _appearanceMenuClosedAt).TotalMilliseconds > 300)
+            {
+                IsAppearanceMenuOpen = true;
+            }
+        }
+
+        private void ToggleFilterMenu()
+        {
+            if (IsFilterMenuOpen)
+            {
+                IsFilterMenuOpen = false;
+            }
+            else if ((DateTime.UtcNow - _filterMenuClosedAt).TotalMilliseconds > 300)
+            {
+                IsFilterMenuOpen = true;
+            }
+        }
+
+        private IEnumerable<SettingMetaSource> GetEnabledSettingSources()
+        {
+            if (_settingSourceCommon) yield return SettingMetaSource.CustomSettings;
+            if (_settingSourceDriver) yield return SettingMetaSource.DriverSettings;
+            if (_settingSourceConstants) yield return SettingMetaSource.ConstantSettings;
+            if (_settingSourceReference) yield return SettingMetaSource.ReferenceSettings;
+            if (_settingSourceScan) yield return SettingMetaSource.ScannedSettings;
+        }
+
+        private IEnumerable<SettingMetaSource> GetEnabledValueSources()
+        {
+            if (_valueSourceCommon) yield return SettingMetaSource.CustomSettings;
+            if (_valueSourceDriver) yield return SettingMetaSource.DriverSettings;
+            if (_valueSourceConstants) yield return SettingMetaSource.ConstantSettings;
+            if (_valueSourceReference) yield return SettingMetaSource.ReferenceSettings;
+            if (_valueSourceScan) yield return SettingMetaSource.ScannedSettings;
+        }
+
+        private void ApplySourceFilters()
+        {
+            _metaService.SetSourceFilters(
+                GetEnabledSettingSources().ToList(),
+                GetEnabledValueSources().ToList(),
+                _mergeDistinctValues,
+                _addPredefinedAppListToCommon,
+                _appendAppListToCommonNames,
+                _addRawValueToCommon,
+                _allowMetaFromInactiveSources);
+        }
+
+        // Invoked by the source checkboxes: re-apply the filter, rebuild the list and persist.
+        private void OnSourceFilterChanged()
+        {
+            if (_isInitializing)
+                return;
+
+            ApplySourceFilters();
+            RefreshCurrentProfile();
+            SaveFilterPreferences();
+        }
+
+        // Used by the "show only customized settings" startup mode to force a common-only view.
+        public void ApplyCommonOnlySettingSource()
+        {
+            _settingSourceCommon = true;
+            _settingSourceDriver = false;
+            _settingSourceConstants = false;
+            _settingSourceReference = false;
+            _settingSourceScan = false;
+            OnPropertyChanged(nameof(SettingSourceCommon));
+            OnPropertyChanged(nameof(SettingSourceDriver));
+            OnPropertyChanged(nameof(SettingSourceConstants));
+            OnPropertyChanged(nameof(SettingSourceReference));
+            OnPropertyChanged(nameof(SettingSourceScan));
+            ApplySourceFilters();
+        }
+
+        private void SaveFilterPreferences()
+        {
+            var settings = Common.Helper.UserSettings.LoadSettings();
+            settings.SettingSourceCommon = _settingSourceCommon;
+            settings.SettingSourceDriver = _settingSourceDriver;
+            settings.SettingSourceConstants = _settingSourceConstants;
+            settings.SettingSourceReference = _settingSourceReference;
+            settings.SettingSourceScan = _settingSourceScan;
+            settings.ValueSourceCommon = _valueSourceCommon;
+            settings.ValueSourceDriver = _valueSourceDriver;
+            settings.ValueSourceConstants = _valueSourceConstants;
+            settings.ValueSourceReference = _valueSourceReference;
+            settings.ValueSourceScan = _valueSourceScan;
+            settings.ModifiedOnly = _modifiedOnly;
+            settings.ShowActiveFromDisabledSources = _showActiveFromDisabledSources;
+            settings.MergeDistinctValues = _mergeDistinctValues;
+            settings.AddPredefinedAppListToCommon = _addPredefinedAppListToCommon;
+            settings.AppendAppListToCommonNames = _appendAppListToCommonNames;
+            settings.AddRawValueToCommon = _addRawValueToCommon;
+            settings.AllowMetaFromInactiveSources = _allowMetaFromInactiveSources;
+            settings.ShowSettingIdInName = _showSettingIdInName;
+            settings.IsFilterAdvancedMode = _isFilterAdvancedMode;
+            settings.SaveSettings();
+        }
+
+        private void ApplyFilterPreset(string preset)
+        {
+            if (string.Equals(preset, "Everything", StringComparison.OrdinalIgnoreCase))
+            {
+                _settingSourceCommon = true;
+                _settingSourceDriver = true;
+                _settingSourceConstants = true;
+                _settingSourceReference = true;
+                _settingSourceScan = true;
+                _valueSourceCommon = true;
+                _valueSourceDriver = true;
+                _valueSourceConstants = true;
+                _valueSourceReference = true;
+                _valueSourceScan = true;
+            }
+            else
+            {
+                ResetFilterDefaults();
+                return;
+            }
+
+            OnPropertyChanged(nameof(SettingSourceCommon));
+            OnPropertyChanged(nameof(SettingSourceDriver));
+            OnPropertyChanged(nameof(SettingSourceConstants));
+            OnPropertyChanged(nameof(SettingSourceReference));
+            OnPropertyChanged(nameof(SettingSourceScan));
+            OnPropertyChanged(nameof(ValueSourceCommon));
+            OnPropertyChanged(nameof(ValueSourceDriver));
+            OnPropertyChanged(nameof(ValueSourceConstants));
+            OnPropertyChanged(nameof(ValueSourceReference));
+            OnPropertyChanged(nameof(ValueSourceScan));
+
+            ApplySourceFilters();
+            RefreshCurrentProfile();
+            SaveFilterPreferences();
+        }
+
+        public void RequestExport() => OnRequestExport?.Invoke();
+
+        public void RequestImport() => OnRequestImport?.Invoke();
+
+        private void ShowCommandPalette()
+        {
+            var dialog = new Views.Dialogs.CommandPaletteDialog(this);
+            var owner = Application.Current.Windows.Cast<Window>()
+                .FirstOrDefault(w => w.IsActive) ?? Application.Current.MainWindow;
+
+            if (owner != null)
+                dialog.Owner = owner;
+
+            dialog.ShowDialog();
+        }
+
+        private void ShowPendingChanges()
+        {
+            if (PendingChangesCount == 0)
+                return;
+
+            RefreshPendingSnapshot();
+            var dialog = new Views.Dialogs.PendingChangesDialog(this);
+            var owner = Application.Current.Windows.Cast<Window>()
+                .FirstOrDefault(w => w.IsActive) ?? Application.Current.MainWindow;
+
+            if (owner != null)
+                dialog.Owner = owner;
+
+            dialog.ShowDialog();
+        }
+
+        private void ShowInstalledGames()
+        {
+            var dialog = new Views.Dialogs.InstalledGamesDialog(this);
+            var owner = Application.Current.Windows.Cast<Window>()
+                .FirstOrDefault(w => w.IsActive) ?? Application.Current.MainWindow;
+
+            if (owner != null)
+                dialog.Owner = owner;
+
+            dialog.ShowDialog();
+        }
+
+        // Restore all filter and value-dropdown options to their defaults.
+        private void ResetFilterDefaults()
+        {
+            _settingSourceCommon = true;
+            _settingSourceDriver = false;
+            _settingSourceConstants = false;
+            _settingSourceReference = false;
+            _settingSourceScan = false;
+            _valueSourceCommon = true;
+            _valueSourceDriver = false;
+            _valueSourceConstants = true;
+            _valueSourceReference = true;
+            _valueSourceScan = true;
+            _modifiedOnly = false;
+            _showActiveFromDisabledSources = true;
+            _mergeDistinctValues = true;
+            _addPredefinedAppListToCommon = true;
+            _appendAppListToCommonNames = false;
+            _addRawValueToCommon = false;
+            _allowMetaFromInactiveSources = true;
+            _showSettingIdInName = false;
+
+            OnPropertyChanged(nameof(SettingSourceCommon));
+            OnPropertyChanged(nameof(SettingSourceDriver));
+            OnPropertyChanged(nameof(SettingSourceConstants));
+            OnPropertyChanged(nameof(SettingSourceReference));
+            OnPropertyChanged(nameof(SettingSourceScan));
+            OnPropertyChanged(nameof(ValueSourceCommon));
+            OnPropertyChanged(nameof(ValueSourceDriver));
+            OnPropertyChanged(nameof(ValueSourceConstants));
+            OnPropertyChanged(nameof(ValueSourceReference));
+            OnPropertyChanged(nameof(ValueSourceScan));
+            OnPropertyChanged(nameof(ModifiedOnly));
+            OnPropertyChanged(nameof(ShowActiveFromDisabledSources));
+            OnPropertyChanged(nameof(MergeDistinctValues));
+            OnPropertyChanged(nameof(AddPredefinedAppListToCommon));
+            OnPropertyChanged(nameof(AppendAppListToCommonNames));
+            OnPropertyChanged(nameof(AddRawValueToCommon));
+            OnPropertyChanged(nameof(AllowMetaFromInactiveSources));
+            OnPropertyChanged(nameof(ShowSettingIdInName));
+
+            ApplySourceFilters();
+            RefreshCurrentProfile();
+            SaveFilterPreferences();
+        }
+
+        private void UpdateThemeProperties(ThemeManager themeManager)
+        {
+            IsMidnightTheme = themeManager.CurrentTheme == "MidnightTheme.xaml";
+            IsSlateTheme = themeManager.CurrentTheme == "SlateLightTheme.xaml";
+            IsCleanWhiteTheme = themeManager.CurrentTheme == "CleanWhiteTheme.xaml";
+            IsVantaTheme = themeManager.CurrentTheme == "VantaTheme.xaml";
+            IsOnyxTheme = themeManager.CurrentTheme == "OnyxTheme.xaml";
+            IsEmberTheme = themeManager.CurrentTheme == "EmberTheme.xaml";
+        }
+
+        private void UpdateDensityProperties(ThemeManager themeManager)
+        {
+            IsCompactDensity = string.Equals(themeManager.CurrentDensity, "Compact", StringComparison.OrdinalIgnoreCase);
+            IsClassicDensity = string.Equals(themeManager.CurrentDensity, "Classic", StringComparison.OrdinalIgnoreCase);
+            OnPropertyChanged(nameof(IsModernDensity));
+        }
+
+        private void UpdateTextRenderingProperties(ThemeManager themeManager)
+        {
+            IsClassicTextRendering = themeManager.IsClassicTextRendering;
+        }
+
+        private void ApplyTheme(string theme)
+        {
+            if (string.IsNullOrEmpty(theme) || App.Bootstrapper == null)
+                return;
+
+            var themeManager = App.Bootstrapper.Resolve<ThemeManager>();
+            var themeName = "OnyxTheme.xaml";
+            if (theme == "Midnight") themeName = "MidnightTheme.xaml";
+            else if (theme == "Slate") themeName = "SlateLightTheme.xaml";
+            else if (theme == "CleanWhite") themeName = "CleanWhiteTheme.xaml";
+            else if (theme == "Vanta") themeName = "VantaTheme.xaml";
+            else if (theme == "Onyx") themeName = "OnyxTheme.xaml";
+            else if (theme == "Ember") themeName = "EmberTheme.xaml";
+
+            themeManager.SetTheme(themeName);
+            UpdateThemeProperties(themeManager);
+            RefreshCurrentProfile();
+        }
+
+        private void ApplyDensity(string density)
+        {
+            if (string.IsNullOrEmpty(density) || App.Bootstrapper == null)
+                return;
+
+            var themeManager = App.Bootstrapper.Resolve<ThemeManager>();
+            themeManager.SetDensity(density);
+            UpdateDensityProperties(themeManager);
+        }
+
+        private void ApplyTextRendering(string mode)
+        {
+            if (string.IsNullOrEmpty(mode) || App.Bootstrapper == null)
+                return;
+
+            var themeManager = App.Bootstrapper.Resolve<ThemeManager>();
+            themeManager.SetTextRendering(mode);
+            UpdateTextRenderingProperties(themeManager);
+        }
+
+        private void ApplyStatusBar(string mode)
+        {
+            if (string.Equals(mode, "Toggle", StringComparison.OrdinalIgnoreCase))
+                ShowStatusFooter = !ShowStatusFooter;
+            else
+                ShowStatusFooter = string.Equals(mode, "Show", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void ApplyToolbarOrientation(string mode)
+        {
+            ToolbarOrientation = mode;
+        }
+
+        private void ApplyBackdropMode(string mode)
+        {
+            var normalizedMode = NormalizeBackdropMode(mode);
+            if (string.IsNullOrEmpty(normalizedMode))
+                return;
+
+            if (NvapiDrsWrapper.Instance.IsMockMode)
+            {
+                NvapiDrsWrapper.Instance.SetMockWin11BackdropMode(normalizedMode);
+            }
+            else
+            {
+                var settings = UserSettings.LoadSettings();
+                settings.Win11BackdropMode = normalizedMode;
+                settings.SaveSettings();
+            }
+
+            _currentBackdropMode = normalizedMode;
+            NotifyBackdropModeChanged();
+
+            if (Application.Current?.MainWindow != null)
+                WindowBackdropHelper.TryApplyTo(Application.Current.MainWindow);
+        }
+
+        private void RefreshBackdropMode()
+        {
+            var configuredMode = NvapiDrsWrapper.Instance.IsMockMode
+                ? NvapiDrsWrapper.Instance.GetMockWin11BackdropMode()
+                : UserSettings.LoadSettings().Win11BackdropMode;
+
+            _currentBackdropMode = NormalizeBackdropMode(configuredMode);
+            NotifyBackdropModeChanged();
+        }
+
+        private static string NormalizeBackdropMode(string mode)
+        {
+            if (string.Equals(mode, "Default", StringComparison.OrdinalIgnoreCase))
+                return "Default";
+
+            if (string.Equals(mode, "MainWindow", StringComparison.OrdinalIgnoreCase))
+                return "MainWindow";
+
+            if (string.Equals(mode, "Acrylic", StringComparison.OrdinalIgnoreCase))
+                return "Acrylic";
+
+            if (string.Equals(mode, "Disabled", StringComparison.OrdinalIgnoreCase))
+                return "Disabled";
+
+            return "Tabbed";
+        }
+
+        private void NotifyBackdropModeChanged()
+        {
+            OnPropertyChanged(nameof(IsBackdropGlass));
+            OnPropertyChanged(nameof(IsBackdropMica));
+            OnPropertyChanged(nameof(IsBackdropMicaVariant));
+            OnPropertyChanged(nameof(IsBackdropAcrylic));
+            OnPropertyChanged(nameof(IsBackdropDisabled));
+        }
+
+        private void ShowAbout()
+        {
+            var dialog = new Views.Dialogs.AboutDialog(_latestAvailableRelease);
+            var owner = Application.Current.Windows.Cast<Window>()
+                .FirstOrDefault(w => w.IsActive) ?? Application.Current.MainWindow;
+
+            if (owner != null)
+                dialog.Owner = owner;
+
+            dialog.ShowDialog();
+        }
+
+        private void ShowCustomSettingsOverrideInfo()
+        {
+            MessageBoxEx.Show(
+                "CustomSettingNames.xml is being loaded from the application directory instead of the embedded default resource.\r\n\r\n" +
+                "This usually means the custom setting metadata has been overridden locally. That can be intentional, but it also means names, groups, descriptions, and values may be older than the build you are running.\r\n\r\n" +
+                "Possible consequences:\r\n" +
+                "- outdated or mismatched setting names\r\n" +
+                "- stale descriptions or value labels\r\n" +
+                "- missing newly embedded settings or metadata fixes\r\n" +
+                "- grouping differences compared to the embedded defaults\r\n\r\n" +
+                "If that is not intended, remove or rename the external CustomSettingNames.xml in the app folder so the embedded resource is used again.",
+                "Custom Settings Override",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+
+        private async Task ScanProfilesAsync(bool onlyModified = false)
+        {
+            if (IsScanning)
+            {
+                await WaitForActiveScanAsync();
+                return;
+            }
+
+            var scanTask = RunScanProfilesAsync(onlyModified);
+            _activeScanTask = scanTask;
+            await scanTask;
+        }
+
+        private Task WaitForActiveScanAsync()
+        {
+            return _activeScanTask ?? Task.CompletedTask;
+        }
+
+        private async Task RunScanProfilesAsync(bool onlyModified)
+        {
+            _uiContext = SynchronizationContext.Current;
+            var window = Application.Current?.MainWindow;
+            if (window != null)
+            {
+                var helper = new System.Windows.Interop.WindowInteropHelper(window);
+                _windowHandle = helper.Handle;
+                if (_windowHandle != IntPtr.Zero)
+                {
+                    _taskbarList = (ITaskbarList3)new TaskbarList();
+                    _taskbarList.HrInit();
+                }
+            }
+
+            IsScanning = true;
+            ScanProgress = 0;
+            ScanStatus = "Scanning profiles...";
+
+            _scanCancellationTokenSource = new CancellationTokenSource();
+            var progress = new Progress<int>(value =>
+            {
+                if (_uiContext != null)
+                {
+                    _uiContext.Post(_ =>
+                    {
+                        ScanProgress = value;
+                        ScanStatus = $"Scanning... {value}%";
+                        if (_taskbarList != null && _windowHandle != IntPtr.Zero)
+                        {
+                            _taskbarList.SetProgressState(_windowHandle, TBPFLAG.TBPF_NORMAL);
+                            _taskbarList.SetProgressValue(_windowHandle, (ulong)value, 100);
+                        }
+                    }, null);
+                }
+            });
+
+            try
+            {
+                await _scannerService.ScanProfileSettingsAsync(onlyModified, progress, _scanCancellationTokenSource.Token);
+
+                _metaService.ResetMetaCache();
+                RefreshProfilesCombo(_currentProfile);
+                RefreshCurrentProfile();
+                OnPropertyChanged(nameof(IsScanAvailable));
+                ScanStatus = "";
+
+                if (_taskbarList != null && _windowHandle != IntPtr.Zero)
+                {
+                    _taskbarList.SetProgressState(_windowHandle, TBPFLAG.TBPF_NOPROGRESS);
+                }
+            }
+            finally
+            {
+                IsScanning = false;
+                ScanProgress = 0;
+                _taskbarList = null;
+                _windowHandle = IntPtr.Zero;
+            }
+        }
+
+        private async Task CheckForUpdatesAsync()
+        {
+            var watch = Stopwatch.StartNew();
+            try
+            {
+                if (nvidiaProfileInspector.Common.Helper.UserSettings.LoadSettings().DisableUpdateCheck)
+                    return;
+
+                if (System.IO.File.Exists(System.IO.Path.Combine(AppContext.BaseDirectory, "DisableUpdateCheck.txt")))
+                    return;
+
+                var channel = UpdateChannelFormatter.Parse(UserSettings.LoadSettings().UpdateChannel);
+                var result = await _updateService.CheckAsync(channel);
+                _latestAvailableRelease = result.IsUpdateAvailable ? result.LatestRelease : null;
+                IsUpdateAvailable = result.IsUpdateAvailable;
+            }
+            catch { }
+            finally
+            {
+                Services.DropdownTrace.Log($"update check finished {watch.ElapsedMilliseconds}ms");
+            }
+        }
+
+    }
+}

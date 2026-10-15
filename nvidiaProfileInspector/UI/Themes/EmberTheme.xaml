@@ -1,0 +1,93 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--  Ember Theme - Warm earthy dark variant  -->
+    <!--  Coffee-brown neutrals, cream text, terracotta secondary accent  -->
+
+    <!--  Base Colors - Near-black with a whisper of warmth (Grok-dark inspired) -->
+    <Color x:Key="WindowBackgroundColor">#100F10</Color>
+    <Color x:Key="Layer1BackgroundColor">#161415</Color>
+    <Color x:Key="Layer2BackgroundColor">#1F1E20</Color>
+    <Color x:Key="Layer3BackgroundColor">#2B2A2E</Color>
+    <Color x:Key="TitleBarBackgroundColor">#100F10</Color>
+    <Color x:Key="TitleBarBackdropColor">#88100F10</Color>
+    <Color x:Key="TitleBarControlBackgroundColor">#D4161415</Color>
+    <Color x:Key="TitleBarControlHoverBackgroundColor">#EA1F1E20</Color>
+    <Color x:Key="TitleBarControlBorderColor">#882A292D</Color>
+    <Color x:Key="TitleBarControlBorderHoverColor">#AA76B900</Color>
+    <Color x:Key="TitleBarPopupBackgroundColor">#F0100F10</Color>
+
+    <Color x:Key="NvidiaGreenColor">#76B900</Color>
+    <Color x:Key="NvidiaGreenHoverColor">#8AD400</Color>
+    <Color x:Key="NvidiaGreenPressedColor">#659F00</Color>
+
+    <Color x:Key="TitleColor">#FFF8EC</Color>
+    <Color x:Key="TextPrimaryColor">#EDE6D6</Color>
+    <Color x:Key="TextSecondaryColor">#A89E8C</Color>
+    <Color x:Key="TextDisabledColor">#6E6252</Color>
+
+    <Color x:Key="UserAccentColor">#B96F52</Color>
+    <Color x:Key="UserAccentHoverColor">#CD855F</Color>
+
+    <Color x:Key="ControlBorderColor">#2A292D</Color>
+    <Color x:Key="ControlBorderHoverColor">#453F45</Color>
+    <Color x:Key="AccentBorderColor">#76B900</Color>
+
+    <Color x:Key="SuccessColor">#107600</Color>
+    <Color x:Key="ErrorColor">#FF6B5E</Color>
+    <Color x:Key="WarningColor">#E8A33D</Color>
+    <Color x:Key="QuestionColor">#4FA3D1</Color>
+    <Color x:Key="LabColor">#C97C5D</Color>
+
+    <!--  Brushes  -->
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource WindowBackgroundColor}" />
+    <SolidColorBrush x:Key="Layer1BackgroundBrush" Color="{StaticResource Layer1BackgroundColor}" />
+    <SolidColorBrush x:Key="Layer2BackgroundBrush" Color="{StaticResource Layer2BackgroundColor}" />
+    <SolidColorBrush x:Key="Layer3BackgroundBrush" Color="{StaticResource Layer3BackgroundColor}" />
+    <SolidColorBrush x:Key="TitleBarBackgroundBrush" Color="{StaticResource TitleBarBackgroundColor}" />
+    <SolidColorBrush x:Key="TitleBarBackdropBrush" Color="{StaticResource TitleBarBackdropColor}" />
+    <SolidColorBrush x:Key="TitleBarControlBackgroundBrush" Color="{StaticResource TitleBarControlBackgroundColor}" />
+    <SolidColorBrush x:Key="TitleBarControlHoverBackgroundBrush" Color="{StaticResource TitleBarControlHoverBackgroundColor}" />
+    <SolidColorBrush x:Key="TitleBarControlBorderBrush" Color="{StaticResource TitleBarControlBorderColor}" />
+    <SolidColorBrush x:Key="TitleBarControlBorderHoverBrush" Color="{StaticResource TitleBarControlBorderHoverColor}" />
+    <SolidColorBrush x:Key="TitleBarPopupBackgroundBrush" Color="{StaticResource TitleBarPopupBackgroundColor}" />
+
+    <SolidColorBrush x:Key="NvidiaGreenBrush" Color="{StaticResource NvidiaGreenColor}" />
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource UserAccentColor}" />
+    <SolidColorBrush x:Key="UserAccentBrush" Color="{StaticResource UserAccentColor}" />
+    <SolidColorBrush x:Key="NvidiaGreenHoverBrush" Color="{StaticResource NvidiaGreenHoverColor}" />
+    <SolidColorBrush x:Key="NvidiaGreenPressedBrush" Color="{StaticResource NvidiaGreenPressedColor}" />
+
+    <SolidColorBrush x:Key="TitleBrush" Color="{StaticResource TitleColor}" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="{StaticResource TextDisabledColor}" />
+
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="{StaticResource ControlBorderColor}" />
+    <SolidColorBrush x:Key="ControlBorderHoverBrush" Color="{StaticResource ControlBorderHoverColor}" />
+    <SolidColorBrush x:Key="AccentBorderBrush" Color="{StaticResource AccentBorderColor}" />
+
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
+    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
+    <SolidColorBrush x:Key="WarningTintBrush" Color="#33F59E0B" />
+    <SolidColorBrush x:Key="QuestionBrush" Color="{StaticResource QuestionColor}" />
+    <SolidColorBrush x:Key="LabBrush" Color="{StaticResource LabColor}" />
+
+    <!--  Overlay / Transparency Brushes  -->
+    <SolidColorBrush x:Key="HighlightOverlayBrush" Color="#15FFEED6" />
+    <SolidColorBrush x:Key="HoverOverlayBrush" Color="#1AFFEED6" />
+    <SolidColorBrush x:Key="PressedOverlayBrush" Color="#25FFEED6" />
+
+    <SolidColorBrush x:Key="ScrollBarThumbBrush" Color="#40FFEED6" />
+    <SolidColorBrush x:Key="ScrollBarThumbHoverBrush" Color="#60FFEED6" />
+    <SolidColorBrush x:Key="ScrollBarThumbPressedBrush" Color="#80FFEED6" />
+
+    <SolidColorBrush x:Key="ApplicationRemoveBrush" Color="#1F1E20" />
+    <SolidColorBrush x:Key="ApplicationRemoveForegroundBrush" Color="#EDE6D6" />
+    <SolidColorBrush x:Key="ApplicationAddBrush" Color="#151F1E20" />
+    <SolidColorBrush x:Key="ApplicationAddHoverBrush" Color="#251F1E20" />
+    <SolidColorBrush x:Key="ListViewAlternatingRowBrush" Color="#131213" />
+    <SolidColorBrush x:Key="ModifiedSettingBackgroundBrush" Color="#15FFEED6" />
+
+</ResourceDictionary>

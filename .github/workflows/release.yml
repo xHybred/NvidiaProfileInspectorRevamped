@@ -1,0 +1,146 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - release
+  pull_request:
+    branches:
+      - release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        fetch-tags: true
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Get next version
+      id: get-version
+      if: github.event_name == 'push'
+      run: |
+        $ASSEMBLY_INFO = "nvidiaProfileInspector\Properties\AssemblyInfo.cs"
+        $ASSEMBLY_CONTENT = Get-Content $ASSEMBLY_INFO -Raw
+        $ASSEMBLY_MATCH = [regex]::Match($ASSEMBLY_CONTENT, 'AssemblyVersion\("(?<version>\d+\.\d+\.\d+\.\d+)"\)')
+        if (!$ASSEMBLY_MATCH.Success) {
+            throw "Could not read AssemblyVersion from $ASSEMBLY_INFO"
+        }
+
+        $BASE_VERSION = [Version]$ASSEMBLY_MATCH.Groups["version"].Value
+        $MAJOR = $BASE_VERSION.Major
+        $MINOR = $BASE_VERSION.Minor
+        $PATCH = $BASE_VERSION.Build
+        $BASE_PREFIX = "${MAJOR}.${MINOR}.${PATCH}"
+
+        $LATEST_VERSION = git tag --list |
+          ForEach-Object { $_.Trim() } |
+          Where-Object { $_ -match '^v?\d+\.\d+\.\d+\.\d+$' } |
+          ForEach-Object { [Version]($_.TrimStart('v')) } |
+          Where-Object { $_.Major -eq $MAJOR -and $_.Minor -eq $MINOR -and $_.Build -eq $PATCH } |
+          Sort-Object |
+          Select-Object -Last 1
+
+        if ($null -eq $LATEST_VERSION) {
+            $BUILD = $BASE_VERSION.Revision
+        } else {
+            $BUILD = $LATEST_VERSION.Revision
+        }
+
+        # Increment BUILD number on each push
+        $BUILD = $BUILD + 1
+        $NEW_VERSION = "${BASE_PREFIX}.${BUILD}"
+        Write-Host "Assembly base version: $($BASE_VERSION.ToString())"
+        Write-Host "Latest matching tag version: $LATEST_VERSION"
+        Write-Host "Next release version: $NEW_VERSION"
+        echo "version=v${NEW_VERSION}" >> $env:GITHUB_OUTPUT
+      shell: pwsh
+
+    - name: Restore NuGet packages
+      run: nuget restore nvidiaProfileInspector\nvidiaProfileInspector.sln
+
+    - name: Update AssemblyInfo (release only)
+      if: github.event_name == 'push'
+      run: |
+        $VERSION = "${{ steps.get-version.outputs.version }}"
+        $VERSION = $VERSION.TrimStart('v')
+        $PARTS = $VERSION.Split('.')
+        $ASSEMBLY_VERSION = "$($PARTS[0]).$($PARTS[1]).$($PARTS[2]).$($PARTS[3])"
+        $FILE = "nvidiaProfileInspector\Properties\AssemblyInfo.cs"
+        $CONTENT = Get-Content $FILE -Raw
+        $CONTENT = $CONTENT -replace 'AssemblyVersion\(".*"\)', "AssemblyVersion(`"$ASSEMBLY_VERSION`")"
+        $CONTENT = $CONTENT -replace 'AssemblyFileVersion\(".*"\)', "AssemblyFileVersion(`"$VERSION`")"
+        Set-Content $FILE $CONTENT
+        Write-Host "Updated AssemblyInfo to version: $VERSION"
+        Write-Host "AssemblyVersion: $ASSEMBLY_VERSION"
+      shell: pwsh
+
+    - name: Build
+      run: msbuild /m /p:Configuration=Release nvidiaProfileInspector\nvidiaProfileInspector.sln
+
+    - name: Create Release Artifact (release only)
+      if: github.event_name == 'push'
+      run: |
+        $artifactDir = "publish\net48"
+        New-Item -ItemType Directory -Force -Path $artifactDir
+        Copy-Item "nvidiaProfileInspector\bin\Release\net48\*" -Destination $artifactDir -Recurse
+      shell: pwsh
+
+    - name: Upload Artifact (release only)
+      if: github.event_name == 'push'
+      uses: actions/upload-artifact@v4
+      with:
+        name: nvidiaProfileInspector
+        path: publish\net48\*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        fetch-tags: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Download Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: nvidiaProfileInspector
+        path: artifact
+
+    - name: Create ZIP
+      run: |
+        cd artifact
+        zip -r ../nvidiaProfileInspector.zip *
+
+    - name: Get version
+      id: version
+      run: echo "version=${{ needs.build.outputs.version }}" >> $GITHUB_OUTPUT
+
+    - name: Create tag
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a ${{ steps.version.outputs.version }} -m "Release ${{ steps.version.outputs.version }}"
+        git push origin ${{ steps.version.outputs.version }}
+
+    - name: Create Pre-Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: Release ${{ steps.version.outputs.version }}
+        prerelease: true
+        generate_release_notes: true
+        files: nvidiaProfileInspector.zip

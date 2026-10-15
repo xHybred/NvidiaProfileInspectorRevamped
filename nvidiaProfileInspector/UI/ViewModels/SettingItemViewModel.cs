@@ -1,0 +1,319 @@
+namespace nvidiaProfileInspector.UI.ViewModels
+{
+    using nvidiaProfileInspector.Common;
+    using nvidiaProfileInspector.Common.Meta;
+    using nvidiaProfileInspector.Native.NVAPI2;
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+
+    public class SettingValueItem
+    {
+        public string ValueName { get; set; }
+        public SettingMetaSource Source { get; set; }
+        public ulong? NumericKey { get; set; }
+        public string RawKey { get; set; }
+
+        public override string ToString()
+        {
+            return ValueName;
+        }
+    }
+
+    public class SettingItemViewModel : ViewModelBase
+    {
+        private SettingItem _item;
+        private string _selectedValue;
+        private bool _isInheritedGlobalOverrideModified;
+        private string _originalValue;
+        private bool _isFavorite;
+        private List<SettingValueItem> _cachedValueNameItems;
+        private string _cachedGroupNameForDisplay;
+
+        public SettingItemViewModel(SettingItem item)
+        {
+            _item = item;
+            _originalValue = item.ValueText;
+            _selectedValue = item.ValueText;
+            UpdateGroupNameForDisplay();
+            UpdateDisplayName();
+        }
+
+        private void UpdateGroupNameForDisplay()
+        {
+            if (_isFavorite)
+                _cachedGroupNameForDisplay = "⭐ Favorites";
+            else
+                _cachedGroupNameForDisplay = GroupName;
+        }
+
+        // Set by the view model from the persisted filter option. Read only while (re)building
+        // the cached DisplayName, so there is no per-row cost while scrolling the list.
+        public static bool ShowSettingIdInName;
+
+        private void UpdateDisplayName()
+        {
+            var name = IsSettingHidden ? "[H] " + SettingText : SettingText;
+
+            // Optionally prefix the setting id, unless the name already is the hex id itself.
+            if (ShowSettingIdInName && !(SettingText != null && SettingText.StartsWith("0x", System.StringComparison.OrdinalIgnoreCase)))
+                name = SettingIdHex + " " + name;
+
+            DisplayName = name;
+        }
+
+        // Recompute the cached display name in place (used when the "show setting id" option
+        // toggles, avoiding a full profile reload).
+        public void RefreshDisplayName()
+        {
+            UpdateDisplayName();
+            OnPropertyChanged(nameof(DisplayName));
+        }
+
+        private void InvalidateValueNameItems()
+        {
+            _cachedValueNameItems = null;
+            OnPropertyChanged(nameof(ValueNameItems));
+        }
+
+        private bool IsValueHiddenForRow(SettingValueItem candidate)
+        {
+            try
+            {
+                if (candidate == null)
+                    return false;
+
+                var bootstrapper = nvidiaProfileInspector.App.Bootstrapper;
+                var meta = bootstrapper?.Resolve<nvidiaProfileInspector.Common.DrsSettingsMetaService>();
+                if (meta == null)
+                    return false;
+
+                return meta.IsValueHidden(SettingId, candidate.NumericKey, candidate.RawKey, _item?.ValueRaw);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void UpdateValueSources(
+            List<SettingValue<uint>> dwordValues,
+            List<SettingValue<ulong>> qwordValues,
+            List<SettingValue<string>> stringValues,
+            List<SettingValue<byte[]>> binaryValues)
+        {
+            DwordValues = dwordValues;
+            QwordValues = qwordValues;
+            StringValues = stringValues;
+            BinaryValues = binaryValues;
+            InvalidateValueNameItems();
+        }
+
+        public List<SettingValueItem> ValueNameItems
+        {
+            get
+            {
+                if (_cachedValueNameItems == null)
+                {
+                    var items = new List<SettingValueItem>();
+                    if (DwordValues != null)
+                    {
+                        items.AddRange(DwordValues.Where(v => !string.IsNullOrEmpty(v.ValueName))
+                        .Select(v => new SettingValueItem { ValueName = v.ValueName, Source = v.ValueSource, NumericKey = v.Value, RawKey = "0X" + v.Value.ToString("X8") }));
+                    }
+                    else if (QwordValues != null)
+                    {
+                        items.AddRange(QwordValues.Where(v => !string.IsNullOrEmpty(v.ValueName))
+                        .Select(v => new SettingValueItem { ValueName = v.ValueName, Source = v.ValueSource, NumericKey = v.Value, RawKey = "0X" + v.Value.ToString("X16") }));
+                    }
+                    else if (StringValues != null)
+                    {
+                        items.AddRange(StringValues.Where(v => !string.IsNullOrEmpty(v.ValueName))
+                        .Select(v => new SettingValueItem { ValueName = v.ValueName, Source = v.ValueSource, NumericKey = null, RawKey = v.Value }));
+                    }
+                    else if (BinaryValues != null)
+                    {
+                        items.AddRange(BinaryValues.Where(v => !string.IsNullOrEmpty(v.ValueName))
+                        .Select(v => new SettingValueItem { ValueName = v.ValueName, Source = v.ValueSource, NumericKey = null, RawKey = v.Value == null ? null : BitConverter.ToString(v.Value).Replace("-", "").ToUpperInvariant() }));
+                    }
+                    items.RemoveAll(v => IsValueHiddenForRow(v));
+                    _cachedValueNameItems = items
+                        .OrderBy(v => v.Source == SettingMetaSource.CustomSettings ? 0 : 1)
+                        .ThenBy(v => v.Source == SettingMetaSource.ReferenceSettings ? 0 : 1)
+                        .ToList();
+                }
+                return _cachedValueNameItems;
+            }
+        }
+
+        public SettingItemViewModel() : this(new SettingItem
+        {
+            SettingId = 0x12345678,
+            SettingText = "Sample Setting",
+            ValueText = "Enabled",
+            ValueRaw = "0x00000001",
+            GroupName = "Design Time",
+            State = SettingState.NvidiaSetting
+        })
+        {
+        }
+
+        // Discriminator shared with SettingGroupHeaderViewModel for the flattened settings list.
+        public bool IsGroupHeader => false;
+
+        public uint SettingId => _item.SettingId;
+        public NVDRS_SETTING_TYPE SettingType => _item.SettingType;
+        public string SettingIdHex => string.Format("0x{0:X8}", _item.SettingId);
+        public string SettingText => _item.SettingText;
+        public string ValueText => _item.ValueText;
+        public string ValueRaw => _item.ValueRaw;
+        public string GroupName => _item.GroupName;
+
+        // Sort key for group name - empty names sort last using Unicode max value
+        public string GroupNameSortKey => string.IsNullOrEmpty(GroupName) ? "Z" : GroupName;
+
+        public string AlternateNames => _item.AlternateNames;
+        public SettingState State => _item.State;
+        public bool IsStringValue => _item.IsStringValue;
+        public bool IsApiExposed => _item.IsApiExposed;
+        public bool IsSettingHidden => _item.IsSettingHidden;
+
+        public string DisplayName { get; private set; }
+
+        public bool IsUserDefined => State == SettingState.UserdefinedSetting;
+        public bool IsNvidiaSetting => State == SettingState.NvidiaSetting;
+        public bool IsGlobalSetting => State == SettingState.GlobalSetting;
+
+        // "Forced" = the setting has an explicit value in the profile (predefined, global
+        // or user), i.e. it is not sitting at the untouched driver default.
+        public bool IsForced => State != SettingState.NotAssiged;
+
+        public bool IsInheritedGlobalValue => State == SettingState.GlobalSetting;
+
+        public bool IsFavorite
+        {
+            get => _isFavorite;
+            set
+            {
+                if (SetProperty(ref _isFavorite, value, nameof(IsFavorite)))
+                {
+                    UpdateGroupNameForDisplay();
+                    OnPropertyChanged(nameof(FavoriteStarVisibility));
+                    OnPropertyChanged(nameof(GroupNameForDisplay));
+                }
+            }
+        }
+
+        public string FavoriteStarVisibility => _isFavorite ? "Visible" : "Hidden";
+
+        public string GroupNameForDisplay => _cachedGroupNameForDisplay;
+
+        public string SelectedValue
+        {
+            get => _selectedValue;
+            set
+            {
+                var wasModified = IsModified;
+                if (SetProperty(ref _selectedValue, value, nameof(SelectedValue)))
+                {
+                    if (wasModified != IsModified)
+                        OnPropertyChanged(nameof(IsModified));
+                }
+            }
+        }
+
+        public bool IsModified
+        {
+            get => IsSelectedValueModified || _isInheritedGlobalOverrideModified;
+            set
+            {
+                if (value)
+                {
+                    MarkInheritedGlobalOverrideModified();
+                }
+                else
+                {
+                    SetInheritedGlobalOverrideModified(false);
+                }
+            }
+        }
+
+        public void MarkInheritedGlobalOverrideModified()
+        {
+            if (IsInheritedGlobalValue && !string.IsNullOrEmpty(_selectedValue))
+                SetInheritedGlobalOverrideModified(true);
+        }
+
+        public void ResetToOriginalValue()
+        {
+            var wasModified = IsModified;
+            _isInheritedGlobalOverrideModified = false;
+            SelectedValue = _originalValue;
+
+            if (wasModified != IsModified)
+                OnPropertyChanged(nameof(IsModified));
+        }
+
+        public SettingItem OriginalItem
+        {
+            get => _item;
+            set
+            {
+                if (SetProperty(ref _item, value, nameof(OriginalItem)))
+                {
+                    _originalValue = value?.ValueText;
+
+                    // The display name / group are cached, so recompute them when the
+                    // underlying item is swapped in during an incremental list refresh
+                    // (e.g. after a source-filter change that changes the resolved name).
+                    UpdateGroupNameForDisplay();
+                    UpdateDisplayName();
+                    InvalidateValueNameItems();
+                    OnPropertyChanged(nameof(DisplayName));
+                    OnPropertyChanged(nameof(GroupNameForDisplay));
+                    OnPropertyChanged(nameof(IsModified));
+                }
+            }
+        }
+
+        private bool IsSelectedValueModified => !string.IsNullOrEmpty(_selectedValue) && _selectedValue != _originalValue;
+
+        private void SetInheritedGlobalOverrideModified(bool value)
+        {
+            var wasModified = IsModified;
+            _isInheritedGlobalOverrideModified = value;
+
+            if (wasModified != IsModified)
+                OnPropertyChanged(nameof(IsModified));
+        }
+
+        private List<SettingValue<uint>> _dwordValues;
+        private List<SettingValue<ulong>> _qwordValues;
+        private List<SettingValue<string>> _stringValues;
+        private List<SettingValue<byte[]>> _binaryValues;
+
+        public List<SettingValue<uint>> DwordValues
+        {
+            get => _dwordValues;
+            set { _dwordValues = value; InvalidateValueNameItems(); }
+        }
+
+        public List<SettingValue<ulong>> QwordValues
+        {
+            get => _qwordValues;
+            set { _qwordValues = value; InvalidateValueNameItems(); }
+        }
+
+        public List<SettingValue<string>> StringValues
+        {
+            get => _stringValues;
+            set { _stringValues = value; InvalidateValueNameItems(); }
+        }
+
+        public List<SettingValue<byte[]>> BinaryValues
+        {
+            get => _binaryValues;
+            set { _binaryValues = value; InvalidateValueNameItems(); }
+        }
+    }
+}
