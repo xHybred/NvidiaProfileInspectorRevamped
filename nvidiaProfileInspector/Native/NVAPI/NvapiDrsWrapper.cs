@@ -236,7 +236,14 @@ namespace nvidiaProfileInspector.Native.NVAPI2
         {
             get
             {
+                if (rawData == null || rawData.Length < 4)
+                    return Array.Empty<byte>();
+
                 var length = BitConverter.ToUInt32(rawData, 0);
+                var maxLength = rawData.Length - 4;
+                if (length > maxLength)
+                    length = (uint)maxLength;
+
                 var tmpData = new byte[length];
                 Buffer.BlockCopy(rawData, 4, tmpData, 0, (int)length);
                 return tmpData;
@@ -247,8 +254,9 @@ namespace nvidiaProfileInspector.Native.NVAPI2
                 rawData = new byte[4100];
                 if (value != null)
                 {
-                    Buffer.BlockCopy(BitConverter.GetBytes(value.Length), 0, rawData, 0, 4);
-                    Buffer.BlockCopy(value, 0, rawData, 4, value.Length);
+                    var length = Math.Min(value.Length, rawData.Length - 4);
+                    Buffer.BlockCopy(BitConverter.GetBytes(length), 0, rawData, 0, 4);
+                    Buffer.BlockCopy(value, 0, rawData, 4, length);
                 }
             }
         }

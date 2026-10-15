@@ -1972,19 +1972,6 @@
                                 IsChecked="{Binding ModifiedOnly}"
                                 Style="{StaticResource ModifiedOnlyToggleStyle}"
                                 ToolTip="Show active or modified settings only" />
-                            <Button
-                                Margin="0,0,6,0"
-                                Command="{Binding SetStatusBarCommand}"
-                                CommandParameter="Toggle"
-                                Style="{StaticResource FilterSourceButtonStyle}"
-                                ToolTip="Show or hide the status bar">
-                                <Path
-                                    Width="16"
-                                    Height="16"
-                                    Data="{DynamicResource IconInfo}"
-                                    Fill="{DynamicResource TextSecondaryBrush}"
-                                    Stretch="Uniform" />
-                            </Button>
                             <Separator Style="{StaticResource ToolBarSeparatorStyle}" />
                             <Button
                                                                             x:Name="GlobalProfileButton"

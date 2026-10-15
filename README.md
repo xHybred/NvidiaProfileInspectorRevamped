@@ -10,11 +10,11 @@ This fork focuses on a few things
 
 4 - Be the first to add support &/or document new features, along with being overall the most user friendly way to adjust NVIDIA settings compared to other versions of NVPI
 
-5 - Support for more themes/styles (e.g. Dark Modes)
+5 - Support for more themes/styles
 
 ## Why does it exist?
 
-I made this because the original version of NVPI was abandoned and missing so many features that community forks added. My goal was to combine all community improvements into one fork while maintaining & improving upon NVPI, by providing future support for it so it can stay operation. Now NVPI is being updated once again since this was created - however, we've gone in two seperate directions with the tools so things have become very different. As a result, I will still continue to maintain NVPI Revamped
+I made this because the original version of NVPI was abandoned and missing so many features that community forks added. My goal was to combine all community improvements into one fork while maintaining & improving upon NVPI, by providing future support for it so it can stay operation. Now NVPI is being updated once again since this was created - however, we've gone in two separate directions with the tools so things have become very different. As a result, I will still continue to maintain NVPI Revamped
 
 ## Other New Things
 
@@ -28,7 +28,7 @@ Other than the stated things above, here's some additional changes the tool make
 
 ## What is NVPI-R?
 
-![](/nspector/Images/n2-016.png) **NVIDIA Profile Inspector**
+**NVIDIA Profile Inspector Revamped**
 
 This tool is used for modifying game profiles inside the internal nvidia driver database.
 All game profiles are provided by the nvidia driver, but you can add your own profiles for games missing in the driver database.
@@ -40,17 +40,13 @@ For more information how to use this tool, you can find some useful informative 
 
 **Screenshots**
 
-Midnight - Compact - Modern
+Midnight - Classic - Modern - Top
 
-<img width="2560" height="1396" alt="Midnight Compact" src="https://github.com/user-attachments/assets/ad4982f7-9db7-415a-aa73-4744973e0a0a" />
+<img width="2560" height="1396" alt="Untitled" src="https://github.com/user-attachments/assets/22c27c43-3a71-40a0-bbbc-822062760500" />
 
-Vanta - Compact - Modern
+Midnight - Classic - Modern - Side
 
-<img width="2560" height="1396" alt="Vanta Compact" src="https://github.com/user-attachments/assets/45d7af17-faf4-48d3-b400-a3ad2bfcf020" />
-
-Midnight - Classic - Classic
-
-<img width="2560" height="1396" alt="Midnight Classic" src="https://github.com/user-attachments/assets/0de8e101-765b-4f45-8fe9-4d649c996dc1" />
+<img width="2560" height="1400" alt="Untitled2" src="https://github.com/user-attachments/assets/b6afd8bd-96c5-48f6-bfc0-ad69128d9ffb" />
 
 ## Socials & Donations
 
