@@ -10,11 +10,11 @@ This fork focuses on a few things
 
 4 - Be the first to add support &/or document new features, along with being overall the most user friendly way to adjust NVIDIA settings compared to other versions of NVPI
 
-5 - Support for more themes/styles (e.g. Dark Modes)
+5 - Support for more themes/styles
 
 ## Why does it exist?
 
-I made this because the original version of NVPI was abandoned and missing so many features that community forks added. My goal was to combine all community improvements into one fork while maintaining & improving upon NVPI, by providing future support for it so it can stay operation. Now NVPI is being updated once again since this was created - however, we've gone in two seperate directions with the tools so things have become very different. As a result, I will still continue to maintain NVPI Revamped
+I made this because the original version of NVPI was abandoned and missing so many features that community forks added. My goal was to combine all community improvements into one fork while maintaining & improving upon NVPI, by providing future support for it so it can stay operation. Now NVPI is being updated once again since this was created - however, we've gone in two separate directions with the tools so things have become very different. As a result, I will still continue to maintain NVPI Revamped
 
 ## Other New Things
 
@@ -28,7 +28,7 @@ Other than the stated things above, here's some additional changes the tool make
 
 ## What is NVPI-R?
 
-![](/nspector/Images/n2-016.png) **NVIDIA Profile Inspector**
+**NVIDIA Profile Inspector Revamped**
 
 This tool is used for modifying game profiles inside the internal nvidia driver database.
 All game profiles are provided by the nvidia driver, but you can add your own profiles for games missing in the driver database.
