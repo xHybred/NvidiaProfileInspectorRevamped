@@ -1,3 +1,4 @@
+<img width="2560" height="1396" alt="Untitled" src="https://github.com/user-attachments/assets/7cd87cc6-a298-49af-b284-d9daf3b2a84d" />
 ## What is the purpose of this fork?
 
 This fork focuses on a few things
@@ -40,17 +41,13 @@ For more information how to use this tool, you can find some useful informative 
 
 **Screenshots**
 
-Midnight - Compact - Modern
+Midnight - Classic - Modern - Top
 
-<img width="2560" height="1396" alt="Midnight Compact" src="https://github.com/user-attachments/assets/ad4982f7-9db7-415a-aa73-4744973e0a0a" />
+<img width="2560" height="1396" alt="Untitled" src="https://github.com/user-attachments/assets/22c27c43-3a71-40a0-bbbc-822062760500" />
 
-Vanta - Compact - Modern
+Midnight - Classic - Modern - Side
 
-<img width="2560" height="1396" alt="Vanta Compact" src="https://github.com/user-attachments/assets/45d7af17-faf4-48d3-b400-a3ad2bfcf020" />
-
-Midnight - Classic - Classic
-
-<img width="2560" height="1396" alt="Midnight Classic" src="https://github.com/user-attachments/assets/0de8e101-765b-4f45-8fe9-4d649c996dc1" />
+<img width="2560" height="1400" alt="Untitled2" src="https://github.com/user-attachments/assets/b6afd8bd-96c5-48f6-bfc0-ad69128d9ffb" />
 
 ## Socials & Donations
 
