@@ -58,15 +58,15 @@ The goals are straightforward:
 
 ## Screenshots
 
-**Onyx theme, Modern density, top toolbar**
+**Onyx theme | Modern Text Density | Top Toolbar**
 
 ![Main window with the Onyx theme](docs/images/main-onyx.png)
 
-**Midnight theme, Classic density**
+**Midnight Theme | Classic Text Density | Top Toolbar**
 
 ![Main window with the Midnight theme](docs/images/main-midnight.png)
 
-**Vanta theme, Compact density, side rail**
+**Vanta Theme | Compact Text Density | Side Rail**
 
 ![Main window with the Vanta theme and side rail](docs/images/main-rail.png)
 
