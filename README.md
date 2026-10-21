@@ -267,7 +267,7 @@ MIT. See [LICENSE](LICENSE). Original work copyright (c) 2016 Orbmu2k.
 
 [Discord](https://discord.com/invite/dc74er8TJF) - [YouTube](https://www.youtube.com/c/Hybred) - [Twitter/X](https://x.com/TheHybred)
 
-NVPI Revamped is free and always will be. If it saves you time, you can help cover the hardware, tools and games used for testing:
+This tool is free and always will be. If it saves you time, you can help cover the hardware, tools and games used for testing:
 
 <p align="center">
   <a href="https://www.patreon.com/c/Hybred"><img src="docs/images/donate-patreon.png" alt="Support on Patreon" height="52"></a>
