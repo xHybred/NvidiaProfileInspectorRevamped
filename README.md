@@ -58,15 +58,15 @@ The goals are straightforward:
 
 ## Screenshots
 
-**Onyx theme, Modern density, top toolbar**
+**Onyx Theme | Modern Density | Top Toolbar**
 
 ![Main window with the Onyx theme](docs/images/main-onyx.png)
 
-**Midnight theme, Classic density**
+**Midnight Theme | Classic Density | Top Toolbar**
 
 ![Main window with the Midnight theme](docs/images/main-midnight.png)
 
-**Vanta theme, Compact density, side rail**
+**Vanta Theme | Compact Density | Side Rail**
 
 ![Main window with the Vanta theme and side rail](docs/images/main-rail.png)
 
@@ -264,15 +264,14 @@ Thanks to everyone who reported bugs, documented settings and helped test releas
 
 MIT. See [LICENSE](LICENSE). Original work copyright (c) 2016 Orbmu2k.
 
-## Socials and donations
-
-**Socials**
+## Socials and support
 
 [Discord](https://discord.com/invite/dc74er8TJF) - [YouTube](https://www.youtube.com/c/Hybred) - [Twitter/X](https://x.com/TheHybred)
 
-**Donations**
+NVPI Revamped is free and always will be. If it saves you time, you can help cover the hardware, tools and games used for testing:
 
-Everything here is free and always will be, but hardware, tools and games for testing cost money. Donations
-are appreciated if you want to help.
-
-[Patreon](https://www.patreon.com/c/Hybred) - [Ko-fi](https://ko-fi.com/hybred)
+<p align="center">
+  <a href="https://www.patreon.com/c/Hybred"><img src="docs/images/donate-patreon.png" alt="Support on Patreon" height="52"></a>
+  &nbsp;&nbsp;
+  <a href="https://ko-fi.com/hybred"><img src="docs/images/donate-kofi.png" alt="Buy me a Ko-fi" height="52"></a>
+</p>
