@@ -16,11 +16,10 @@
 
 It edits the profiles inside the NVIDIA driver database. Profiles ship with the driver, but you can also
 create your own for games and applications that NVIDIA does not provide one for. Everything the NVIDIA
-Control Panel exposes is available here, plus the many hidden and undocumented driver settings it does not.
+Control Panel & NVIDIA App exposes is available here, plus the many hidden and undocumented driver settings it doesn't.
 
 > This is a fork, not the original project. It shares the same purpose and driver database, but the UI,
-> setting organisation and feature set have diverged significantly. The original project is still available
-> at [Orbmu2k/nvidiaProfileInspector](https://github.com/Orbmu2k/nvidiaProfileInspector).
+> setting organisation and feature set have diverged significantly.
 
 ---
 
@@ -29,11 +28,11 @@ Control Panel exposes is available here, plus the many hidden and undocumented d
 NVPI was abandoned for years while the community built separate forks with different improvements. NVPI
 Revamped was created to combine those efforts into one maintained tool and to keep pushing it forward.
 
-The goals are straightforward:
+The goals are:
 
 - Make the tool friendlier and more modern without hiding what it actually does.
 - Document and name unknown or unnamed driver settings so changes are not blind guesses.
-- Organise settings in a way that makes sense: consistent groups, ordered drop-down values, clearer descriptions.
+- Organize settings in a way that makes sense: consistent groups, ordered drop-down values, clearer descriptions.
 - Support new driver features and settings as they appear.
 - Provide a UI that people actually want to use, with themes, display density options and keyboard navigation.
 
