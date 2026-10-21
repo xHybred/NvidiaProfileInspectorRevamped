@@ -364,3 +364,8 @@ FodyWeavers.xsd
 /nul
 .dotnet
 /.claude
+
+# Build output and local publish packages. Never commit these.
+nvidiaProfileInspector/bin/
+nvidiaProfileInspector/obj/
+release/

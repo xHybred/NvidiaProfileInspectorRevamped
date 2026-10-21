@@ -257,16 +257,26 @@ namespace nvidiaProfileInspector.UI.Views
         {
             var settings = Common.Helper.UserSettings.LoadSettings();
 
-            if (settings.WindowWidth > 0 && settings.WindowHeight > 0)
-            {
-                Width = Math.Max(settings.WindowWidth, MinWidth);
-                Height = Math.Max(settings.WindowHeight, MinHeight);
-            }
+            bool hasSavedSize = settings.WindowWidth > 0 && settings.WindowHeight > 0;
+            bool hasSavedPosition = settings.WindowLeft != 0 || settings.WindowTop != 0;
 
-            if (settings.WindowLeft > 0 && settings.WindowTop > 0)
+            double width = hasSavedSize ? settings.WindowWidth : Width;
+            double height = hasSavedSize ? settings.WindowHeight : Height;
+            double left = hasSavedPosition ? settings.WindowLeft : Left;
+            double top = hasSavedPosition ? settings.WindowTop : Top;
+
+            // Never trust the persisted geometry: it can belong to a monitor that is no longer
+            // attached, or to a different DPI scale. Off-screen bounds would leave the window
+            // running with only a taskbar button and no visible surface.
+            if (Common.Helper.WindowPlacementHelper.TryNormalizeBounds(
+                    new Rect(left, top, width, height),
+                    new Size(MinWidth, MinHeight),
+                    out var bounds))
             {
-                Left = settings.WindowLeft;
-                Top = settings.WindowTop;
+                Width = bounds.Width;
+                Height = bounds.Height;
+                Left = bounds.Left;
+                Top = bounds.Top;
             }
 
             if (settings.WindowState == WindowState.Maximized)
@@ -282,7 +292,19 @@ namespace nvidiaProfileInspector.UI.Views
             SettingsListView.SelectionChanged -= SettingsListView_SelectionChanged;
             SettingsListView.LayoutUpdated -= SettingsListView_LayoutUpdated;
 
-            var restoreBounds = WindowState == WindowState.Maximized ? RestoreBounds : new Rect(Left, Top, Width, Height);
+            // RestoreBounds is the real (non minimized/maximized) rectangle for those states.
+            var restoreBounds = WindowState == WindowState.Normal
+                ? new Rect(Left, Top, Width, Height)
+                : RestoreBounds;
+
+            if (Common.Helper.WindowPlacementHelper.TryNormalizeBounds(
+                    restoreBounds,
+                    new Size(MinWidth, MinHeight),
+                    out var normalizedBounds))
+            {
+                restoreBounds = normalizedBounds;
+            }
+
             _viewModel.SaveSettings(restoreBounds.Left, restoreBounds.Top, restoreBounds.Width, restoreBounds.Height, WindowState);
         }
 

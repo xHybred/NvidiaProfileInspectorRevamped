@@ -171,12 +171,22 @@ namespace nvidiaProfileInspector.UI.Views.Dialogs
                 {
                     WindowState = WindowState.Maximized;
                 }
-                else if (settings.GamesWindowWidth >= MinWidth && settings.GamesWindowHeight >= MinHeight)
+                else if (settings.GamesWindowWidth > 0 && settings.GamesWindowHeight > 0)
                 {
-                    Left = settings.GamesWindowLeft;
-                    Top = settings.GamesWindowTop;
-                    Width = settings.GamesWindowWidth;
-                    Height = settings.GamesWindowHeight;
+                    var desired = new Rect(
+                        settings.GamesWindowLeft,
+                        settings.GamesWindowTop,
+                        settings.GamesWindowWidth,
+                        settings.GamesWindowHeight);
+
+                    if (nvidiaProfileInspector.Common.Helper.WindowPlacementHelper.TryNormalizeBounds(
+                            desired, new Size(MinWidth, MinHeight), out var bounds))
+                    {
+                        Left = bounds.Left;
+                        Top = bounds.Top;
+                        Width = bounds.Width;
+                        Height = bounds.Height;
+                    }
                 }
             }
             catch { }
@@ -188,7 +198,17 @@ namespace nvidiaProfileInspector.UI.Views.Dialogs
             {
                 var settings = nvidiaProfileInspector.Common.Helper.UserSettings.LoadSettings();
                 settings.GamesWindowMaximized = WindowState == WindowState.Maximized;
-                var bounds = WindowState == WindowState.Maximized ? RestoreBounds : new Rect(Left, Top, Width, Height);
+
+                var bounds = WindowState == WindowState.Normal
+                    ? new Rect(Left, Top, Width, Height)
+                    : RestoreBounds;
+
+                if (nvidiaProfileInspector.Common.Helper.WindowPlacementHelper.TryNormalizeBounds(
+                        bounds, new Size(MinWidth, MinHeight), out var normalizedBounds))
+                {
+                    bounds = normalizedBounds;
+                }
+
                 settings.GamesWindowLeft = bounds.Left;
                 settings.GamesWindowTop = bounds.Top;
                 settings.GamesWindowWidth = bounds.Width;

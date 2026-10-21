@@ -263,10 +263,17 @@ namespace nvidiaProfileInspector
             if (window.WindowState == WindowState.Minimized)
                 window.WindowState = WindowState.Normal;
 
+            var handle = new WindowInteropHelper(window).Handle;
+            if (handle != IntPtr.Zero)
+            {
+                // Last-resort guard: if the window ended up outside every monitor, move it back
+                // before activation. Otherwise the app would appear to start with no visible window.
+                WindowPlacementHelper.EnsureHandleOnScreen(handle);
+            }
+
             window.Activate();
             window.Focus();
 
-            var handle = new WindowInteropHelper(window).Handle;
             if (handle != IntPtr.Zero)
                 new MessageHelper().bringAppToFront(handle.ToInt32());
         }
@@ -427,6 +434,10 @@ namespace nvidiaProfileInspector
             {
                 if (process.Id == current.Id || process.MainWindowHandle == IntPtr.Zero)
                     continue;
+
+                // The existing instance may be running with its window outside every monitor.
+                // Move it back on screen, otherwise this launch silently does nothing visible.
+                WindowPlacementHelper.EnsureHandleOnScreen(process.MainWindowHandle);
 
                 messageHelper.bringAppToFront((int)process.MainWindowHandle);
                 return;

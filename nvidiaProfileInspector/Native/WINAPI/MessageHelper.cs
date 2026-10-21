@@ -46,6 +46,12 @@ namespace nvidiaProfileInspector.Native.WINAPI
         [DllImport("User32.dll", CharSet = CharSet.Auto)]
         public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
+        [DllImport("User32.dll")]
+        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [DllImport("User32.dll")]
+        public static extern bool IsIconic(IntPtr hWnd);
+
         #region Message Constants
 
         public const int WM_NULL = 0x00;
@@ -293,7 +299,10 @@ namespace nvidiaProfileInspector.Native.WINAPI
         public const uint SWP_NOSIZE = 0x0001;
         public const uint SWP_NOZORDER = 0x0004;
         public const uint SWP_NOOWNERZORDER = 0x0200;
+        public const uint SWP_SHOWWINDOW = 0x0040;
 
+        public const int MONITOR_DEFAULTTONULL = 0;
+        public const int MONITOR_DEFAULTTOPRIMARY = 1;
         public const int MONITOR_DEFAULTTONEAREST = 2;
 
         //Used for WM_COPYDATA for string messages

@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 
-[assembly: AssemblyTitle("nvidiaProfileInspector")]
+[assembly: AssemblyTitle("NVPI Revamped")]
 [assembly: AssemblyDescription("NVPI Revamped - Driver Profile Settings Editor")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
@@ -12,5 +12,5 @@ using System.Windows;
 [assembly: AssemblyCulture("")]
 [assembly: ComVisible(false)]
 [assembly: ThemeInfo(ResourceDictionaryLocation.None, ResourceDictionaryLocation.SourceAssembly)]
-[assembly: AssemblyVersion("7.3.1.0")]
-[assembly: AssemblyFileVersion("7.3.1.0")]
+[assembly: AssemblyVersion("7.3.2.0")]
+[assembly: AssemblyFileVersion("7.3.2.0")]
